@@ -4,8 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 
-_MODULE_PATH = Path(__file__).resolve().parent
-load_dotenv(_MODULE_PATH / ".env", override=True)
+_ROOT_PATH = Path(__file__).resolve().parent.parent
+load_dotenv(_ROOT_PATH / ".env", override=True)
 
 
 @dataclass
