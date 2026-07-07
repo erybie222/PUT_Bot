@@ -11,7 +11,7 @@ This project uses a PostgreSQL database with the `pgvector` extension. The datab
    ```
 3. In the root directory of the project, run the following command:
    ```bash
-   docker-compose up -d
+   docker-compose -f docker/docker-compose.yml --env-file .env up -d
    ```
    _The `-d` flag runs the container in the background (detached mode)._
 
@@ -36,16 +36,16 @@ The environment includes **pgAdmin** to easily manage and query the database thr
 
 ### Stopping the database
 
-To stop the running database container (without deleting data), execute:
+To stop the running database container (without deleting data), execute from the root directory:
 
 ```bash
-docker-compose down
+docker-compose -f docker/docker-compose.yml --env-file .env down
 ```
 
 If you want to stop the database **and delete all its data** (hard reset, deleting the Docker volume):
 
 ```bash
-docker-compose down -v
+docker-compose -f docker/docker-compose.yml --env-file .env down -v
 ```
 
 ## 📦 Package Management (uv)
