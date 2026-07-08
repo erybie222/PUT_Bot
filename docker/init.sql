@@ -1,74 +1,72 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
-
-CREATE TABLE IF NOT EXISTS wydzialy_uczelni (
-    akronim VARCHAR(10) CONSTRAINT pk_wydzialy_uczelni PRIMARY KEY,
-    nazwa VARCHAR(150) CONSTRAINT uk_nazwa UNIQUE
+CREATE TABLE IF NOT EXISTS faculties (
+    acronym VARCHAR(10) CONSTRAINT pk_faculties PRIMARY KEY,
+    name VARCHAR(150) CONSTRAINT uk_faculty_name UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS kierunki_studiow (
-    id SERIAL CONSTRAINT pk_kierunki_studiow PRIMARY KEY,
-    nazwa VARCHAR(50) NOT NULL,
-    stopien INT NOT NULL CHECK (stopien IN (1, 2)), -- 1 - inżynierskie/licencjackie, 2 - magisterskie
-    tryb VARCHAR(50) NOT NULL CHECK (tryb IN ('stacjonarne', 'niestacjonarne')),
-    profil VARCHAR(50) NOT NULL DEFAULT 'ogólnoakademicki',
-    wydzial VARCHAR(10) CONSTRAINT fk_wydzial REFERENCES wydzialy_uczelni(akronim),
-    w_jezyku_angielskim BOOLEAN NOT NULL DEFAULT FALSE,
-    CONSTRAINT uk_kierunek UNIQUE (nazwa, stopien, tryb)
+CREATE TABLE IF NOT EXISTS majors (
+    id SERIAL CONSTRAINT pk_majors PRIMARY KEY,
+    name VARCHAR(50) NOT NULL,
+    degree INT NOT NULL CHECK (degree IN (1, 2)), -- 1 - bachelors/engineering, 2 - masters
+    study_mode VARCHAR(50) NOT NULL CHECK (study_mode IN ('full-time', 'part-time')),
+    profile VARCHAR(50) NOT NULL DEFAULT 'general academic',
+    faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(acronym),
+    is_english BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT uk_major UNIQUE (name, degree, study_mode)
 );
 
-CREATE TABLE IF NOT EXISTS progi_punktowe (
-    id SERIAL CONSTRAINT pk_progi_punktowe PRIMARY KEY,
-    id_kierunku INT NOT NULL CONSTRAINT fk_progi_punktowe REFERENCES kierunki_studiow(id) ON DELETE CASCADE,    rok INT NOT NULL,
-    tura INT NOT NULL DEFAULT 1 CONSTRAINT ck_tura CHECK(tura BETWEEN 1 AND 2),
-    min_l_pkt NUMERIC(5,2) NOT NULL,
-    limit_przyjec INT NOT NULL,
+CREATE TABLE IF NOT EXISTS admission_thresholds (
+    id SERIAL CONSTRAINT pk_admission_thresholds PRIMARY KEY,
+    major_id INT NOT NULL CONSTRAINT fk_threshold_major REFERENCES majors(id) ON DELETE CASCADE,
+    year INT NOT NULL,
+    round INT NOT NULL DEFAULT 1 CONSTRAINT ck_round CHECK(round BETWEEN 1 AND 2),
+    min_points NUMERIC(5,2) NOT NULL,
+    capacity INT NOT NULL,
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_progi_punktowe UNIQUE (id_kierunku, rok, tura)
+    CONSTRAINT uk_admission_thresholds UNIQUE (major_id, year, round)
 );
 
-CREATE TABLE IF NOT EXISTS przedmioty (
-    id SERIAL PRIMARY KEY,
-    id_kierunku INT NOT NULL CONSTRAINT fk_kierunki_studiow REFERENCES kierunki_studiow(id) ON DELETE CASCADE,
-    semestr INT NOT NULL CHECK (semestr BETWEEN 1 AND 8),
-    nazwa VARCHAR(200) NOT NULL,
-    w_jezyku_angielskim BOOLEAN NOT NULL DEFAULT FALSE,
+CREATE TABLE IF NOT EXISTS courses (
+    course_code VARCHAR(50) PRIMARY KEY,
+    major_id INT NOT NULL CONSTRAINT fk_course_major REFERENCES majors(id) ON DELETE CASCADE,
+    semester INT NOT NULL CHECK (semester BETWEEN 1 AND 8),
+    name VARCHAR(200) NOT NULL,
+    is_english BOOLEAN NOT NULL DEFAULT FALSE,
+    is_obligatory BOOLEAN NOT NULL DEFAULT TRUE,
     ects INT NOT NULL CHECK (ects >= 0),
-    godz_w INT NOT NULL DEFAULT 0, -- Wykład
-    godz_c INT NOT NULL DEFAULT 0, -- Ćwiczenia
-    godz_l INT NOT NULL DEFAULT 0, -- Laboratoria
-    godz_p INT NOT NULL DEFAULT 0, -- Projekt
-    forma_zal VARCHAR(50), -- np. Egzamin, Zaliczenie ocena
+    hours_lecture INT NOT NULL DEFAULT 0,
+    hours_classes INT NOT NULL DEFAULT 0,
+    hours_lab INT NOT NULL DEFAULT 0,
+    hours_project INT NOT NULL DEFAULT 0,
+    assessment_type VARCHAR(50),
     source_url TEXT,
-    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_przedmioty UNIQUE (id_kierunku, semestr, nazwa)
+    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS pracownicy (
+CREATE TABLE IF NOT EXISTS staff (
     id SERIAL PRIMARY KEY,
-    imie VARCHAR(50) NOT NULL,
-    nazwisko VARCHAR(50) NOT NULL,
-    tytul_naukowy VARCHAR(100),
-    jednostka VARCHAR(200), -- np. Instytut Informatyki, Zakład Systemów Komputerowych
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    academic_title VARCHAR(100),
+    department VARCHAR(200),
     email VARCHAR(100),
-    nr_telefonu VARCHAR(100),
-    pokoj VARCHAR(100),
+    phone VARCHAR(100),
+    room VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS konsultacje (
+CREATE TABLE IF NOT EXISTS office_hours (
     id SERIAL PRIMARY KEY,
-    pracownik_id INT NOT NULL CONSTRAINT fk_pracownicy REFERENCES pracownicy(id) ON DELETE CASCADE,
-    semestr VARCHAR(50) NOT NULL, -- np. "letni 2025/2026"
-    dzien_tygodnia VARCHAR(20) NOT NULL,    -- np. "Poniedziałek"
-    godz_od TIME NOT NULL,
-    godz_do TIME NOT NULL,
-    miejsce VARCHAR(100),         -- np. "pok. 104 BT", "MS Teams"
+    staff_id INT NOT NULL CONSTRAINT fk_office_hours_staff REFERENCES staff(id) ON DELETE CASCADE,
+    semester_label VARCHAR(50) NOT NULL,
+    day_of_week VARCHAR(20) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    location VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_konsultacje UNIQUE (pracownik_id, semestr, dzien_tygodnia, godz_od)
-    );
-
-
+    CONSTRAINT uk_office_hours UNIQUE (staff_id, semester_label, day_of_week, start_time)
+);
