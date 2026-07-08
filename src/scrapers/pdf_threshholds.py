@@ -58,14 +58,14 @@ def process_pdf(file_path):
                     continue
 
                 # Extract data for each year
-                for year, (idx_limit, idx_points) in YEAR_COLUMNS.items():
-                    limit_str = row[idx_limit]
+                for year, (idx_capacity, idx_points) in YEAR_COLUMNS.items():
+                    capacity_str = row[idx_capacity]
                     points_str = row[idx_points]
 
-                    limit = clean_number(limit_str, int)
+                    capacity = clean_number(capacity_str, int)
                     points = clean_number(points_str, float)
 
-                    if limit is None or points is None:
+                    if capacity is None or points is None:
                         continue
 
                     # Upsert using our queries module
@@ -74,11 +74,11 @@ def process_pdf(file_path):
                         major_id=major_id,
                         year=year,
                         points=points,
-                        limit=limit,
+                        capacity=capacity,
                         source_url=f"PDF: {file_path}"
                     )
 
-                    print(f"  -> Year {year}: Min Points = {points}, Limit = {limit}")
+                    print(f"  -> Year {year}: Min Points = {points}, Capacity = {capacity}")
 
         # Commit all changes once the file is fully processed
         conn.commit()

@@ -39,19 +39,20 @@ def upsert_threshold(cursor, major_id: int, year: int, points: float, capacity: 
     """, (major_id, year, points, capacity, source_url))
 
 def upsert_course(cursor, code: str, major_id: int, semester: int, name: str,
-                  is_obligatory: bool, ects: int, w: int, c: int, l: int, p: int,
+                  is_obligatory: bool, is_english: bool, ects: int, w: int, c: int, l: int, p: int,
                   form: str, source_url: str):
     """Upserts course (ECTS card) data into the database using the course code as the primary key."""
     cursor.execute("""
         INSERT INTO courses 
-        (course_code, major_id, semester, name, is_obligatory, ects, 
+        (course_code, major_id, semester, name, is_obligatory, is_english, ects, 
          hours_lecture, hours_classes, hours_lab, hours_project, assessment_type, source_url)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (course_code) 
         DO UPDATE SET 
             semester = EXCLUDED.semester,
             name = EXCLUDED.name,
             is_obligatory = EXCLUDED.is_obligatory,
+            is_english = EXCLUDED.is_english,
             ects = EXCLUDED.ects,
             hours_lecture = EXCLUDED.hours_lecture,
             hours_classes = EXCLUDED.hours_classes,
@@ -60,4 +61,4 @@ def upsert_course(cursor, code: str, major_id: int, semester: int, name: str,
             assessment_type = EXCLUDED.assessment_type,
             source_url = EXCLUDED.source_url,
             last_updated = CURRENT_TIMESTAMP;
-    """, (code, major_id, semester, name, is_obligatory, ects, w, c, l, p, form, source_url))
+    """, (code, major_id, semester, name, is_obligatory, is_english, ects, w, c, l, p, form, source_url))
