@@ -1,6 +1,10 @@
 import pdfplumber
+from typing import Callable, TypeVar
+
 from src.database.connection import get_db_connection
 from src.database.queries import initialize_lookups, get_or_create_major, upsert_threshold
+
+NumberT = TypeVar("NumberT", int, float)
 
 # Dictionary of WIiT majors
 WIIT_MAJORS = [
@@ -19,15 +23,33 @@ YEAR_COLUMNS = {
     2021: (9, 10)
 }
 
-def clean_number(value, output_type):
-    """Replaces Polish commas with dots and casts to int/float. Ignores empty strings."""
+def clean_number(value: str | None, output_type: Callable[[str], NumberT]) -> NumberT | None:
+    """
+    Normalize Polish decimal strings and cast them to the target numeric type.
+
+    Args:
+        value: Raw number string from PDF table cell.
+        output_type: Callable used for final cast (for example: ``int`` or ``float``).
+
+    Returns:
+        NumberT | None: Parsed numeric value or None for empty/missing input.
+    """
     if not value or value.strip() in ('', '-'):
         return None
 
     clean_value = value.replace(',', '.').strip()
     return output_type(clean_value)
 
-def process_pdf(file_path):
+def process_pdf(file_path: str) -> None:
+    """
+    Parse admission thresholds from PDF and upsert them into PostgreSQL.
+
+    Args:
+        file_path: Path to the source PDF file with thresholds table.
+
+    Returns:
+        None: This function performs file I/O and database side effects.
+    """
     print(f"Starting PDF extraction process...")
 
     # Using the context manager to ensure safe connection handling
@@ -35,6 +57,7 @@ def process_pdf(file_path):
         cursor = conn.cursor()
 
         print("Connected to the database. Initializing basic structures...")
+        # Inserting WIiT faculty if it doesn't exist
         initialize_lookups(cursor)
 
         print(f"Opening file: {file_path}")

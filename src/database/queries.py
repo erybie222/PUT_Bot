@@ -1,15 +1,34 @@
-def initialize_lookups(cursor):
-    """Ensures the WIiT faculty exists in the database."""
+"""SQL helper functions for data insertion and upserts."""
+
+from psycopg2.extensions import cursor as DBCursor
+
+
+def initialize_lookups(cursor: DBCursor) -> None:
+    """
+    Ensure base lookup records required by the project are present.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
     cursor.execute("""
         INSERT INTO faculties (acronym, name)
         VALUES ('WIiT', 'Wydział Informatyki i Telekomunikacji')
         ON CONFLICT (acronym) DO NOTHING;
     """)
 
-def get_or_create_major(cursor, major_name: str) -> int:
+def get_or_create_major(cursor: DBCursor, major_name: str) -> int | None:
     """
-    Checks if a major exists. If not, creates it (defaulting to full-time, 1st degree)
-    and returns its ID.
+    Get a major ID by name, creating the major if it does not exist.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        major_name: Normalized major name (for example: ``"informatyka"``).
+
+    Returns:
+        int | None: Existing or newly created major ID, or None when it cannot be resolved.
     """
     cursor.execute("""
         INSERT INTO majors (name, degree, study_mode, faculty)
@@ -25,8 +44,28 @@ def get_or_create_major(cursor, major_name: str) -> int:
     result = cursor.fetchone()
     return result[0] if result else None
 
-def upsert_threshold(cursor, major_id: int, year: int, points: float, capacity: int, source_url: str):
-    """Upserts admission threshold data into the database."""
+def upsert_threshold(
+    cursor: DBCursor,
+    major_id: int,
+    year: int,
+    points: float,
+    capacity: int,
+    source_url: str,
+) -> None:
+    """
+    Insert or update a single admission threshold record.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        major_id: Foreign key pointing to the ``majors`` table.
+        year: Admission year for the threshold record.
+        points: Minimum admission points for the given year/round.
+        capacity: Number of available places for the given year/round.
+        source_url: Source reference used for provenance tracking.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
     cursor.execute("""
         INSERT INTO admission_thresholds 
         (major_id, year, round, min_points, capacity, source_url)
@@ -38,10 +77,44 @@ def upsert_threshold(cursor, major_id: int, year: int, points: float, capacity: 
             last_updated = CURRENT_TIMESTAMP;
     """, (major_id, year, points, capacity, source_url))
 
-def upsert_course(cursor, code: str, major_id: int, semester: int, name: str,
-                  is_obligatory: bool, is_english: bool, ects: int, w: int, c: int, l: int, p: int,
-                  form: str, source_url: str):
-    """Upserts course (ECTS card) data into the database using the course code as the primary key."""
+def upsert_course(
+    cursor: DBCursor,
+    code: str,
+    major_id: int,
+    semester: int,
+    name: str,
+    is_obligatory: bool,
+    is_english: bool,
+    ects: int,
+    w: int,
+    c: int,
+    l: int,
+    p: int,
+    form: str,
+    source_url: str | None,
+) -> None:
+    """
+    Insert or update a course row from the ECTS catalog.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        code: Unique course code used as a primary key.
+        major_id: Foreign key pointing to the ``majors`` table.
+        semester: Semester number in range 1..8.
+        name: Human-readable course name.
+        is_obligatory: Flag indicating obligatory vs elective status.
+        is_english: Flag indicating whether the course is taught in English.
+        ects: Number of ECTS points assigned to the course.
+        w: Number of lecture hours.
+        c: Number of exercise hours.
+        l: Number of laboratory hours.
+        p: Number of project hours.
+        form: Assessment type label (for example: exam/pass).
+        source_url: URL to course source document; can be None when unavailable.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
     cursor.execute("""
         INSERT INTO courses 
         (course_code, major_id, semester, name, is_obligatory, is_english, ects, 
