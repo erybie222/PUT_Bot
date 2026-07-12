@@ -23,7 +23,13 @@ def parse_hours(hours_str: str) -> tuple[int, bool]:
     return hours_int, has_exam
 
 
-def process_full_catalog(url: str, major_id: int):
+def process_full_catalog(url: str, major_id: int) -> None:
+    """
+    Fetches the full catalog of courses from the provided URL and upserts them into the database.
+    :param url: The URL to fetch the catalog from.
+    :param major_id: The ID of the major for which to upsert courses.
+    :return: None
+    """
     print(f"Fetching full catalog from: {url}")
 
     try:
@@ -51,6 +57,7 @@ def process_full_catalog(url: str, major_id: int):
             if 'przedmioty' not in section_title:
                 continue
 
+            # Check if course is obligatory or elective based on the section title
             is_obligatory = 'obligatoryjne' in section_title
 
             # --- DYNAMIC SEMESTER DISCOVERY ---
@@ -70,14 +77,16 @@ def process_full_catalog(url: str, major_id: int):
 
             print(f"\n--- SEMESTER {semester} | {'Obligatory' if is_obligatory else 'Elective'} ---")
 
+            # Find the tbody element and all rows within it (courses are set in table)
             tbody = table.find('tbody')
             rows = tbody.find_all('tr') if tbody else table.find_all('tr')
 
             for row in rows:
-                # Skip structural group headers (e.g., elective course groups)
+                # Check if the row is an elective group row and adjust the obligatory flag accordingly
                 if 'elective-group-row' in row.get('class', []):
-                    continue
+                    is_obligatory = False
 
+                # Skip rows that don't have enough cells to extract data
                 cells = row.find_all('td')
                 if len(cells) < 8:
                     continue
@@ -107,7 +116,7 @@ def process_full_catalog(url: str, major_id: int):
 
                 form_of_assessment = "Egzamin" if w_exam else "Zaliczenie z ocena"
 
-                # 4. Extract the PDF Link (from the 'PL' column - index 7)
+                # 4. Extract the PDF Link in Polish language (from the 'PL' column - index 7)
                 pdf_link = None
                 pl_cell = cells[7]
                 anchor = pl_cell.find('a', class_='course-link')
