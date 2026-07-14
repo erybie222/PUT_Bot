@@ -23,8 +23,8 @@ The environment includes **pgAdmin** to easily manage and query the database thr
 
 1. Open your browser and navigate to `http://localhost:5050`.
 2. Log in using the default credentials:
-   - **Email:** `admin@admin.com`
-   - **Password:** `root`
+   - **Email:**  Use the `PGADMIN_EMAIL` value from your `.env` (default: `admin@admin.com`)
+   - **Password:** Use the `PGADMIN_PASSWORD` value from your `.env` (default: `root`)
 3. Register a new server connection:
    - **Connection tab:**
      - **Host name/address:** `PUT_Bot_db`
