@@ -1,3 +1,5 @@
+name: put-bot
+
 services:
   db:
     image: pgvector/pgvector:pg18

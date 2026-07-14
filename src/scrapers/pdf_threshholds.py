@@ -1,18 +1,7 @@
 import pdfplumber
-from typing import Callable, TypeVar
-
+from typing import Callable
 from src.database.connection import get_db_connection
-from src.database.queries import initialize_lookups, get_or_create_major, upsert_threshold
-
-NumberT = TypeVar("NumberT", int, float)
-
-# Dictionary of WIiT majors
-WIIT_MAJORS = [
-    "informatyka",
-    "sztuczna inteligencja",
-    "teleinformatyka",
-    "bioinformatyka"
-]
+from src.database.queries import get_major_id, upsert_threshold
 
 # Column definitions for specific years
 YEAR_COLUMNS = {
@@ -23,7 +12,7 @@ YEAR_COLUMNS = {
     2021: (9, 10)
 }
 
-def clean_number(value: str | None, output_type: Callable[[str], NumberT]) -> NumberT | None:
+def clean_number(value: str | None, output_type: Callable[[str], int | float]) -> int | float | None:
     """
     Normalize Polish decimal strings and cast them to the target numeric type.
 
@@ -32,7 +21,7 @@ def clean_number(value: str | None, output_type: Callable[[str], NumberT]) -> Nu
         output_type: Callable used for final cast (for example: ``int`` or ``float``).
 
     Returns:
-        NumberT | None: Parsed numeric value or None for empty/missing input.
+        int | float | None: Parsed numeric value or None for empty/missing input.
     """
     if not value or value.strip() in ('', '-'):
         return None
@@ -56,10 +45,6 @@ def process_pdf(file_path: str) -> None:
     with get_db_connection() as conn:
         cursor = conn.cursor()
 
-        print("Connected to the database. Initializing basic structures...")
-        # Inserting WIiT faculty if it doesn't exist
-        initialize_lookups(cursor)
-
         print(f"Opening file: {file_path}")
         with pdfplumber.open(file_path) as pdf:
             table = pdf.pages[0].extract_table()
@@ -69,12 +54,8 @@ def process_pdf(file_path: str) -> None:
                 raw_name = row[0]
                 clean_name = raw_name.split('/')[0].strip().lower()
 
-                # Filter out non-WIiT majors
-                if clean_name not in WIIT_MAJORS:
-                    continue
-
                 print(f"\nProcessing: {clean_name.capitalize()}")
-                major_id = get_or_create_major(cursor, clean_name)
+                major_id = get_major_id(cursor, clean_name, 'bachelor-of-engineering', 'full-time')
 
                 if not major_id:
                     print(f"  -> Error: Could not resolve ID for {clean_name}")

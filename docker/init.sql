@@ -2,15 +2,15 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS faculties (
     acronym VARCHAR(10) CONSTRAINT pk_faculties PRIMARY KEY,
-    name VARCHAR(150) CONSTRAINT uk_faculty_name UNIQUE
+    name VARCHAR(50) CONSTRAINT uk_faculty_name UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS majors (
     id SERIAL CONSTRAINT pk_majors PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    degree VARCHAR(20) NOT NULL CHECK (degree IN ('bachelor-of-engineering', 'masters')),
+    degree VARCHAR(50) NOT NULL CHECK (degree IN ('bachelor-of-engineering', 'masters')),
     study_mode VARCHAR(50) NOT NULL CHECK (study_mode IN ('full-time', 'part-time')),
-    profile VARCHAR(30) NOT NULL DEFAULT 'general-academic' CHECK (profile IN ('general-academic', 'practical')),
+    profile VARCHAR(50) NOT NULL DEFAULT 'general-academic' CHECK (profile IN ('general-academic', 'practical')),
     faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(acronym),
     is_english BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT uk_major UNIQUE (name, degree, study_mode)

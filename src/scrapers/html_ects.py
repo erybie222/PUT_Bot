@@ -1,7 +1,8 @@
 import requests
 from bs4 import BeautifulSoup
 import re
-from src.database.connection import get_db_connection
+
+from psycopg2.extensions import cursor as DBCursor
 from src.database.queries import upsert_course
 
 
@@ -28,11 +29,12 @@ def parse_hours(hours_str: str) -> tuple[int, bool]:
     return hours_int, has_exam
 
 
-def process_full_catalog(url: str, major_id: int) -> None:
+def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
     """
     Fetch the full ECTS catalog and upsert courses to the database.
 
     Args:
+        cursor: Database cursor for executing queries.
         url: URL of the ECTS catalog page for a selected major.
         major_id: Resolved database identifier of the target major.
 
@@ -53,109 +55,100 @@ def process_full_catalog(url: str, major_id: int) -> None:
     # Find all h3 headers (Obligatory / Elective subjects)
     sections = soup.find_all('h3')
 
-    print("Connecting to the database...")
+    for section in sections:
+        section_title = section.get_text(strip=True).lower()
 
-    # Using context manager for safe database connection
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+        # Ignore h3 tags that do not relate to subjects
+        if 'przedmioty' not in section_title:
+            continue
 
-        for section in sections:
-            section_title = section.get_text(strip=True).lower()
+        # Check if course is obligatory or elective based on the section title
+        is_obligatory = 'obligatoryjne' in section_title
 
-            # Ignore h3 tags that do not relate to subjects
-            if 'przedmioty' not in section_title:
+        # --- DYNAMIC SEMESTER DISCOVERY ---
+        # Find the nearest H2 header located above in the HTML structure
+        parent_h2 = section.find_previous('h2')
+        if not parent_h2:
+            continue
+
+        semester_text = parent_h2.get_text(strip=True)  # e.g., "Semestr 1"
+        semester_match = re.search(r'\d+', semester_text)
+        semester = int(semester_match.group()) if semester_match else 0
+
+        # The table containing courses immediately follows the H3 tag
+        table = section.find_next_sibling('table')
+        if not table:
+            continue
+
+        print(f"\n--- SEMESTER {semester} | {'Obligatory' if is_obligatory else 'Elective'} ---")
+
+        # Find the tbody element and all rows within it (courses are set in table)
+        tbody = table.find('tbody')
+        rows = tbody.find_all('tr') if tbody else table.find_all('tr')
+
+        for row in rows:
+            # Check if the row is an elective group row and adjust the obligatory flag accordingly
+            if 'elective-group-row' in row.get('class', []):
+                is_obligatory = False
+
+            # Skip rows that don't have enough cells to extract data
+            cells = row.find_all('td')
+            if len(cells) < 8:
                 continue
 
-            # Check if course is obligatory or elective based on the section title
-            is_obligatory = 'obligatoryjne' in section_title
+            # 1. Extract Name and Code securely using their CSS classes
+            name_span = cells[0].find('span', class_='course-name')
+            code_span = cells[0].find('span', class_='course-code')
 
-            # --- DYNAMIC SEMESTER DISCOVERY ---
-            # Find the nearest H2 header located above in the HTML structure
-            parent_h2 = section.find_previous('h2')
-            if not parent_h2:
+            if not name_span or not code_span:
                 continue
 
-            semester_text = parent_h2.get_text(strip=True)  # e.g., "Semestr 1"
-            semester_match = re.search(r'\d+', semester_text)
-            semester = int(semester_match.group()) if semester_match else 0
+            subject_name = name_span.get_text(strip=True)
+            subject_code = code_span.get_text(strip=True)
 
-            # The table containing courses immediately follows the H3 tag
-            table = section.find_next_sibling('table')
-            if not table:
-                continue
+            # If course code endswith ang then change boolean flag to true
+            is_english = subject_code.lower().endswith('ang')
 
-            print(f"\n--- SEMESTER {semester} | {'Obligatory' if is_obligatory else 'Elective'} ---")
+            # 2. Extract ECTS points
+            ects_text = cells[1].get_text(strip=True)
+            ects = int(ects_text) if ects_text.isdigit() else 0
 
-            # Find the tbody element and all rows within it (courses are set in table)
-            tbody = table.find('tbody')
-            rows = tbody.find_all('tr') if tbody else table.find_all('tr')
+            # 3. Extract Hours and Exam info
+            w_hours, w_exam = parse_hours(cells[2].get_text(strip=True))
+            c_hours, _ = parse_hours(cells[3].get_text(strip=True))
+            l_hours, _ = parse_hours(cells[4].get_text(strip=True))
+            p_hours, _ = parse_hours(cells[5].get_text(strip=True))
 
-            for row in rows:
-                # Check if the row is an elective group row and adjust the obligatory flag accordingly
-                if 'elective-group-row' in row.get('class', []):
-                    is_obligatory = False
+            form_of_assessment = "Egzamin" if w_exam else "Zaliczenie z ocena"
 
-                # Skip rows that don't have enough cells to extract data
-                cells = row.find_all('td')
-                if len(cells) < 8:
-                    continue
+            # 4. Extract the PDF Link in Polish language (from the 'PL' column - index 7)
+            pdf_link = None
+            pl_cell = cells[7]
+            anchor = pl_cell.find('a', class_='course-link')
+            if anchor and 'href' in anchor.attrs:
+                pdf_link = anchor['href']
+                # Prefix with the main domain if the link is relative
+                if pdf_link.startswith('/'):
+                    pdf_link = f"https://put.poznan.pl{pdf_link}"
 
-                # 1. Extract Name and Code securely using their CSS classes
-                name_span = cells[0].find('span', class_='course-name')
-                code_span = cells[0].find('span', class_='course-code')
+            print(f"Upserting -> [{subject_code}] {subject_name} (ECTS: {ects})")
 
-                if not name_span or not code_span:
-                    continue
+            # Push the data to PostgreSQL
+            upsert_course(
+                cursor=cursor,
+                code=subject_code,
+                major_id=major_id,
+                semester=semester,
+                name=subject_name,
+                is_obligatory=is_obligatory,
+                is_english=is_english,
+                ects=ects,
+                w=w_hours,
+                c=c_hours,
+                l=l_hours,
+                p=p_hours,
+                form=form_of_assessment,
+                source_url=pdf_link
+            )
 
-                subject_name = name_span.get_text(strip=True)
-                subject_code = code_span.get_text(strip=True)
-
-                # If course code endswith ang then change boolean flag to true
-                is_english = subject_code.lower().endswith('ang')
-
-                # 2. Extract ECTS points
-                ects_text = cells[1].get_text(strip=True)
-                ects = int(ects_text) if ects_text.isdigit() else 0
-
-                # 3. Extract Hours and Exam info
-                w_hours, w_exam = parse_hours(cells[2].get_text(strip=True))
-                c_hours, _ = parse_hours(cells[3].get_text(strip=True))
-                l_hours, _ = parse_hours(cells[4].get_text(strip=True))
-                p_hours, _ = parse_hours(cells[5].get_text(strip=True))
-
-                form_of_assessment = "Egzamin" if w_exam else "Zaliczenie z ocena"
-
-                # 4. Extract the PDF Link in Polish language (from the 'PL' column - index 7)
-                pdf_link = None
-                pl_cell = cells[7]
-                anchor = pl_cell.find('a', class_='course-link')
-                if anchor and 'href' in anchor.attrs:
-                    pdf_link = anchor['href']
-                    # Prefix with the main domain if the link is relative
-                    if pdf_link.startswith('/'):
-                        pdf_link = f"https://put.poznan.pl{pdf_link}"
-
-                print(f"Upserting -> [{subject_code}] {subject_name} (ECTS: {ects})")
-
-                # Push the data to PostgreSQL
-                upsert_course(
-                    cursor=cursor,
-                    code=subject_code,
-                    major_id=major_id,
-                    semester=semester,
-                    name=subject_name,
-                    is_obligatory=is_obligatory,
-                    is_english=is_english,
-                    ects=ects,
-                    w=w_hours,
-                    c=c_hours,
-                    l=l_hours,
-                    p=p_hours,
-                    form=form_of_assessment,
-                    source_url=pdf_link
-                )
-
-        # Commit all changes to the database at the very end
-        conn.commit()
-
-    print("\nDatabase commit successful. Catalog processing complete!")
+    print("\nCatalog processing complete.")
