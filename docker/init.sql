@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS faculties (
 CREATE TABLE IF NOT EXISTS majors (
     id SERIAL CONSTRAINT pk_majors PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
-    degree INT NOT NULL CHECK (degree IN (1, 2)), -- 1 - bachelors/engineering, 2 - masters
+    degree VARCHAR(20) NOT NULL CHECK (degree IN ('bachelor-of-engineering', 'masters')),
     study_mode VARCHAR(50) NOT NULL CHECK (study_mode IN ('full-time', 'part-time')),
-    profile VARCHAR(50) NOT NULL DEFAULT 'general academic',
+    profile VARCHAR(30) NOT NULL DEFAULT 'general-academic' CHECK (profile IN ('general-academic', 'practical')),
     faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(acronym),
     is_english BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT uk_major UNIQUE (name, degree, study_mode)

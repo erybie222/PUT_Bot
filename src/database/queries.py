@@ -19,27 +19,60 @@ def initialize_lookups(cursor: DBCursor) -> None:
         ON CONFLICT (acronym) DO NOTHING;
     """)
 
-def get_or_create_major(cursor: DBCursor, major_name: str) -> int | None:
+def create_major(
+    cursor: DBCursor,
+    major_name: str,
+    degree: str,
+    study_mode: str,
+    profile: str,
+    faculty: str,
+    is_english: bool,
+) -> int:
     """
-    Get a major ID by name, creating the major if it does not exist.
+    Create a new major record and return its ID.
 
     Args:
         cursor: Open PostgreSQL cursor used to execute SQL statements.
-        major_name: Normalized major name (for example: ``"informatyka"``).
+        major_name: Normalized major name (e.g. ``"informatyka"``).
+        degree: Degree of the major. (bachelor-of-engineering/masters)
+        study_mode: Study mode of the major. (full-time/part-time)
+        profile: Profile name of the major (general-academic / practical),
+        faculty: Acronym of the faculty for the major. (e.g. WIIT ),
+        is_english: Whether the major conducted in english.
 
     Returns:
-        int | None: Existing or newly created major ID, or None when it cannot be resolved.
+        int: The ID of the created or existing major.
     """
     cursor.execute("""
-        INSERT INTO majors (name, degree, study_mode, faculty)
-        VALUES (%s, 1, 'full-time', 'WIiT')
-        ON CONFLICT (name, degree, study_mode) DO NOTHING;
-    """, (major_name,))
+        INSERT INTO majors (name, degree, study_mode, profile, faculty, is_english)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (name, degree, study_mode)
+        DO UPDATE SET
+            profile = EXCLUDED.profile,
+            faculty = EXCLUDED.faculty,
+            is_english = EXCLUDED.is_english
+        RETURNING id;
+    """, (major_name, degree, study_mode, profile, faculty, is_english))
+    return cursor.fetchone()[0]
 
+
+def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str) -> int | None:
+    """
+    Get a major's ID.
+
+   Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        major_name: Normalized major name (e.g. : ``"informatyka"``).
+        degree: Degree of the major. (bachelor-of-engineering/masters)
+        study_mode: Study mode of the major. (full-time/part-time)
+
+    Returns:
+        int | None: The ID of the  major, or None when it does not exist.
+    """
     cursor.execute("""
         SELECT id FROM majors
-        WHERE name = %s AND degree = 1 AND study_mode = 'full-time';
-    """, (major_name,))
+        WHERE name = %s AND degree = %s AND study_mode = %s;
+    """, (major_name, degree, study_mode))
 
     result = cursor.fetchone()
     return result[0] if result else None
