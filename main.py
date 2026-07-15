@@ -1,7 +1,6 @@
 """Project entry point for loading WIiT data into PostgreSQL."""
-
 from src.database.queries import create_major, initialize_lookups
-from src.database.connection import get_db_connection
+from src.database.connection import get_db_connection, close_pool
 from src.scrapers.html_ects import process_full_catalog
 from src.scrapers.pdf_threshholds import process_pdf
 
@@ -28,29 +27,30 @@ def main() -> None:
     print("Starting PUT_Bot ingestion pipeline...")
 
 
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        print("Connected to the database. Initializing basic structures...")
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            print("Connected to the database. Initializing basic structures...")
 
-        # Inserting WIiT faculty if it doesn't exist
-        initialize_lookups(cursor)
+            # Inserting WIiT faculty if it doesn't exist
+            initialize_lookups(cursor)
 
-        # Inserting WIiT majors if they don't exist and then courses for each major
-        for major in WIIT_MAJORS:
-            major_id = create_major(
-                cursor,
-                major_name=major,
-                degree='bachelor-of-engineering',
-                study_mode="full-time",
-                profile="general-academic",
-                faculty="WIiT",
-                is_english=False,
-            )
-            normalized_major_name = major.replace(" ", "%20")
-            major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
-            process_full_catalog(cursor, major_catalog_url, major_id=major_id)
-
-        conn.commit()
+            # Inserting WIiT majors if they don't exist and then courses for each major
+            for major in WIIT_MAJORS:
+                major_id = create_major(
+                    cursor,
+                    major_name=major,
+                    degree='bachelor-of-engineering',
+                    study_mode="full-time",
+                    profile="general-academic",
+                    faculty="WIiT",
+                    is_english=False,
+                )
+                normalized_major_name = major.replace(" ", "%20")
+                major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
+                process_full_catalog(cursor, major_catalog_url, major_id=major_id)
+    finally:
+        close_pool()
 
 
 

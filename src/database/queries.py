@@ -1,6 +1,6 @@
 """SQL helper functions for data insertion and upserts."""
 
-from psycopg2.extensions import cursor as DBCursor
+from psycopg import Cursor as DBCursor
 
 
 def initialize_lookups(cursor: DBCursor) -> None:

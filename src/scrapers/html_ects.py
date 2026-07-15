@@ -2,7 +2,7 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-from psycopg2.extensions import cursor as DBCursor
+from psycopg import Cursor as DBCursor
 from src.database.queries import upsert_course
 
 

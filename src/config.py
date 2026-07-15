@@ -23,13 +23,13 @@ class DatabaseSettings:
 
     def to_dict(self) -> dict[str, str | int]:
         """
-        Convert settings to a psycopg2-compatible keyword argument dictionary.
+        Convert settings to a psycopg-compatible keyword argument dictionary.
 
         Args:
             None.
 
         Returns:
-            dict[str, str | int]: Mapping passed directly to ``psycopg2.connect``.
+            dict[str, str | int]: Mapping passed as connection kwargs to the psycopg pool.
         """
         return {
             "dbname": self.dbname,
