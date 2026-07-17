@@ -14,9 +14,9 @@ def initialize_lookups(cursor: DBCursor) -> None:
         None: This function performs database side effects only.
     """
     cursor.execute("""
-        INSERT INTO faculties (acronym, name)
+        INSERT INTO faculties (symbol, name)
         VALUES ('WIiT', 'Wydział Informatyki i Telekomunikacji')
-        ON CONFLICT (acronym) DO NOTHING;
+        ON CONFLICT (symbol) DO NOTHING;
     """)
 
 def create_major(
@@ -37,7 +37,7 @@ def create_major(
         degree: Degree of the major. (bachelor-of-engineering/masters)
         study_mode: Study mode of the major. (full-time/part-time)
         profile: Profile name of the major (general-academic / practical),
-        faculty: Acronym of the faculty for the major. (e.g. WIIT ),
+        faculty: Symbol of the faculty for the major. (e.g. WIiT ),
         is_english: Whether the major conducted in english.
 
     Returns:
@@ -168,3 +168,146 @@ def upsert_course(
             source_url = EXCLUDED.source_url,
             last_updated = CURRENT_TIMESTAMP;
     """, (code, major_id, semester, name, is_obligatory, is_english, ects, w, c, l, p, form, source_url))
+
+def upsert_department(
+    cursor: DBCursor,
+    name: str,
+    symbol: str | None,
+    parent: str | None,
+    unit_type: str | None,
+    faculty: str,
+    address: str | None,
+    phone: str | None,
+    email: str | None,
+    source_url: str | None,
+) -> None:
+    """
+    Insert or update a single organizational unit (institute/division/dean's office).
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        name: Polish unit name, primary key (e.g. ``"Instytut Informatyki"``).
+        symbol: Unit symbol from the source (e.g. ``"II"``); NOT unique — divisions
+            share the symbol of their institute. Can be None when unavailable.
+        parent: Name of the parent unit within the same faculty, or None for units
+            directly under the faculty (institutes, dean's office).
+        unit_type: Unit type label from the source (e.g. ``"instytut"``, ``"zakład"``).
+        faculty: Symbol of the faculty the unit belongs to (e.g. ``"WIiT"``).
+        address: Postal address of the unit; can be None when unavailable.
+        phone: Office phone number(s); can be None when unavailable.
+        email: Office e-mail address; can be None when unavailable.
+        source_url: Source reference used for provenance tracking.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
+    cursor.execute("""
+        INSERT INTO departments (name, symbol, parent, unit_type, faculty, address, phone, email, source_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (name)
+        DO UPDATE SET
+            symbol = EXCLUDED.symbol,
+            parent = EXCLUDED.parent,
+            unit_type = EXCLUDED.unit_type,
+            faculty = EXCLUDED.faculty,
+            address = EXCLUDED.address,
+            phone = EXCLUDED.phone,
+            email = EXCLUDED.email,
+            source_url = EXCLUDED.source_url,
+            last_updated = CURRENT_TIMESTAMP;
+    """, (name, symbol, parent, unit_type, faculty, address, phone, email, source_url))
+
+def upsert_staff(
+    cursor: DBCursor,
+    first_name: str,
+    last_name: str,
+    academic_title: str | None,
+    department: str | None,
+    email: str,
+    phone: str | None,
+    source_url: str,
+) -> int:
+    """
+    Insert or update a staff member record and return its ID.
+
+    Identity is the (unique) university e-mail address.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        first_name: Given name(s) of the staff member.
+        last_name: Family name of the staff member.
+        academic_title: Academic title prefix (e.g. ``"dr hab. inż."``); can be None.
+        department: Name of the unit the member belongs to (FK to ``departments``); can be None.
+        email: University e-mail address, used as the natural key for upserts.
+        phone: Phone number(s); can be None when unavailable.
+        source_url: URL of the source business card used for provenance tracking.
+
+    Returns:
+        int: The ID of the created or existing staff record.
+    """
+    cursor.execute("""
+        INSERT INTO staff
+        (first_name, last_name, academic_title, department, email, phone, source_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (email)
+        DO UPDATE SET
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            academic_title = EXCLUDED.academic_title,
+            department = EXCLUDED.department,
+            phone = EXCLUDED.phone,
+            source_url = EXCLUDED.source_url,
+            last_updated = CURRENT_TIMESTAMP
+        RETURNING id;
+    """, (first_name, last_name, academic_title, department, email, phone, source_url))
+    return cursor.fetchone()[0]
+
+def delete_office_hours(cursor: DBCursor, staff_id: int) -> None:
+    """
+    Remove all office hours of one staff member.
+
+    Used before re-inserting the currently published set, so office hours
+    removed at the source disappear from the database as well.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        staff_id: Foreign key pointing to the ``staff`` table.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
+    cursor.execute("""
+        DELETE FROM office_hours
+        WHERE staff_id = %s;
+    """, (staff_id,))
+
+def insert_office_hour(
+    cursor: DBCursor,
+    staff_id: int,
+    day_of_week: str,
+    start_time: str,
+    end_time: str,
+    location: str | None,
+    source_url: str,
+) -> None:
+    """
+    Insert a single weekly office-hours slot for a staff member.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        staff_id: Foreign key pointing to the ``staff`` table.
+        day_of_week: Polish weekday name (e.g. ``"poniedziałek"``).
+        start_time: Slot start in ``HH:MM`` format.
+        end_time: Slot end in ``HH:MM`` format.
+        location: Building/room or ``"online"``; can be None when unavailable.
+        source_url: URL of the source business card used for provenance tracking.
+
+    Returns:
+        None: This function performs database side effects only.
+    """
+    cursor.execute("""
+        INSERT INTO office_hours
+        (staff_id, day_of_week, start_time, end_time, location, source_url)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (staff_id, day_of_week, start_time) DO NOTHING;
+    """, (staff_id, day_of_week, start_time, end_time, location, source_url))

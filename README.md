@@ -67,9 +67,11 @@ To add a new package to the project and update the configuration, use:
 uv add <package_name>
 ```
 
-### Running the application
+### Running the ingestion pipeline
 
-To execute scripts within the project's virtual environment, use:
+The pipeline loads all WIiT data into PostgreSQL in one run (single transaction, committed at the end):
+majors + ECTS courses, admission thresholds (PDF), and WIiT units/staff/office hours (Informator PP).
+
 ```bash
-uv run main.py
+uv run run_ingestion.py
 ```

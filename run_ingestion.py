@@ -2,6 +2,7 @@
 from src.database.queries import create_major, initialize_lookups
 from src.database.connection import get_db_connection, close_pool
 from src.scrapers.html_ects import process_full_catalog
+from src.scrapers.informator_staff_office_hours import process_informator
 from src.scrapers.pdf_threshholds import process_pdf
 
 THRESHOLDS_PDF_PATH = "data/progi punktowe 2025-2021.pdf"
@@ -24,7 +25,9 @@ WIIT_MAJORS_EN_FIRST_CYCLE = [
 
 def main() -> None:
     """
-    Run the ingestion pipeline: thresholds first, then ECTS catalog.
+    Run the ingestion pipeline: majors + ECTS catalog, thresholds, then staff.
+
+    Everything runs on one connection/cursor and commits once at the end.
 
     Args:
         None.
@@ -57,6 +60,8 @@ def main() -> None:
                 normalized_major_name = major.replace(" ", "%20")
                 major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
                 process_full_catalog(cursor, major_catalog_url, major_id=major_id)
+
+            # English majors
             for major in WIIT_MAJORS_EN_FIRST_CYCLE:
                 major_id = create_major(
                     cursor,
@@ -71,6 +76,15 @@ def main() -> None:
                 normalized_major_name = major_name.replace(" ", "%20")
                 major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
                 process_full_catalog(cursor, major_catalog_url, major_id=major_id)
+
+            # Admission thresholds (matched to the majors created above)
+            process_pdf(cursor, THRESHOLDS_PDF_PATH)
+
+
+            try:
+                process_informator(cursor)
+            except RuntimeError as error:
+                print(f"Informator staff scraping aborted: {error}")
     finally:
         close_pool()
 

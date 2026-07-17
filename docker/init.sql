@@ -1,7 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS faculties (
-    acronym VARCHAR(10) CONSTRAINT pk_faculties PRIMARY KEY,
+    symbol VARCHAR(10) CONSTRAINT pk_faculties PRIMARY KEY,
     name VARCHAR(50) CONSTRAINT uk_faculty_name UNIQUE
 );
 
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS majors (
     degree VARCHAR(50) NOT NULL CHECK (degree IN ('bachelor-of-engineering', 'masters')),
     study_mode VARCHAR(50) NOT NULL CHECK (study_mode IN ('full-time', 'part-time')),
     profile VARCHAR(50) NOT NULL DEFAULT 'general-academic' CHECK (profile IN ('general-academic', 'practical')),
-    faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(acronym),
+    faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(symbol),
     is_english BOOLEAN NOT NULL DEFAULT FALSE,
     CONSTRAINT uk_major UNIQUE (name, degree, study_mode)
 );
@@ -45,15 +45,28 @@ CREATE TABLE IF NOT EXISTS courses (
     last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS departments (
+    name VARCHAR(100) CONSTRAINT pk_departments PRIMARY KEY,
+    symbol VARCHAR(10),
+    parent VARCHAR(100) CONSTRAINT fk_department_parent REFERENCES departments(name),
+    unit_type VARCHAR(50),
+    description TEXT,
+    faculty VARCHAR(10) NOT NULL CONSTRAINT fk_department_faculty REFERENCES faculties(symbol),
+    address TEXT,
+    phone VARCHAR(100),
+    email VARCHAR(100),
+    source_url TEXT,
+    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS staff (
     id SERIAL PRIMARY KEY,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     academic_title VARCHAR(100),
-    department VARCHAR(200),
-    email VARCHAR(100),
+    department VARCHAR(100) CONSTRAINT fk_staff_department REFERENCES departments(name),
+    email VARCHAR(100) CONSTRAINT uk_staff_email UNIQUE,
     phone VARCHAR(100),
-    room VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -61,12 +74,11 @@ CREATE TABLE IF NOT EXISTS staff (
 CREATE TABLE IF NOT EXISTS office_hours (
     id SERIAL PRIMARY KEY,
     staff_id INT NOT NULL CONSTRAINT fk_office_hours_staff REFERENCES staff(id) ON DELETE CASCADE,
-    semester_label VARCHAR(50) NOT NULL,
     day_of_week VARCHAR(20) NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     location VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_office_hours UNIQUE (staff_id, semester_label, day_of_week, start_time)
+    CONSTRAINT uk_office_hours UNIQUE (staff_id, day_of_week, start_time)
 );
