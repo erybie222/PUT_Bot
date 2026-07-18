@@ -73,7 +73,13 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
 
         semester_text = parent_h2.get_text(strip=True)  # e.g., "Semestr 1"
         semester_match = re.search(r'\d+', semester_text)
-        semester = int(semester_match.group()) if semester_match else 0
+
+        # Skip the course insertion if semester was not found
+
+        if semester_match:
+            semester = int(semester_match.group())
+        else:
+            continue
 
         # The table containing courses immediately follows the H3 tag
         table = section.find_next_sibling('table')
