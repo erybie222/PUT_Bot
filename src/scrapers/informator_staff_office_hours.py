@@ -230,8 +230,8 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
     """
     result = api_call(session, f"Card.CardShow&uuid={uuid}", True)
     modules = result["card"]["modules"]
-    meetings_data = (modules.get("meetings") or {}).get("data") or {}
-    meetings = meetings_data.get("meetings") or {}
+    meetings_data = (modules.get("meetings", {}) or {}).get("data", {}) or {}
+    meetings = meetings_data.get("meetings", {}) or {}
 
     delete_office_hours(cursor, staff_id)
     stored = 0
@@ -246,6 +246,7 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
             start_time=meeting["start_hour"],
             end_time=meeting["end_hour"],
             location=build_location(meeting),
+            comment=meeting.get("comment") or None,
             source_url=source_url,
         )
         stored += 1
@@ -286,7 +287,7 @@ def process_informator(cursor: DBCursor) -> None:
         name = node["name"]["pl"][:100]
         unit_names_by_id[node["id"]] = (name, depth)
         parent = unit_names_by_id.get(node["parent_id"])
-        phones = ", ".join(p["number"] for p in node.get("phones") or [])
+        phones = ", ".join(p["number"] for p in node.get("phones", []))
         upsert_department(
             cursor=cursor,
             name=name,
@@ -303,13 +304,14 @@ def process_informator(cursor: DBCursor) -> None:
 
     processed = skipped = hours_total = 0
     for item in fetch_employees(session, faculty["id"]):
-        basic = (item["modules"].get("basic") or {}).get("data") or {}
-        contact = (item["modules"].get("contact") or {}).get("data") or {}
-        employment = (item["modules"].get("employment") or {}).get("data") or {}
+        basic = (item["modules"].get("basic", {}) or {}).get("data", {}) or {}
+        contact = (item["modules"].get("contact", {}) or {}).get("data", {}) or {}
+        employment = (item["modules"].get("employment", {}) or {}).get("data", {}) or {}
 
-        email = (contact.get("email") or "").strip().lower()
-        first_name = (basic.get("name") or "").strip()
-        last_name = (basic.get("surname") or "").strip()
+        email = (contact.get("email", "") or ""
+                                             "").strip().lower()
+        first_name = (basic.get("name", "") or "").strip()
+        last_name = (basic.get("surname", "") or "").strip()
         if not (email and first_name and last_name):
             print(f"  -> Skipping (no email or name): {first_name} {last_name}")
             skipped += 1
@@ -320,10 +322,10 @@ def process_informator(cursor: DBCursor) -> None:
             cursor=cursor,
             first_name=first_name[:50],
             last_name=last_name[:50],
-            academic_title=(basic.get("title") or "").strip()[:100] or None,
-            department=pick_department(employment.get("positions") or {}, unit_names_by_id),
+            academic_title=(basic.get("title", "") or "").strip()[:100] or None,
+            department=pick_department(employment.get("positions", {}) or {}, unit_names_by_id),
             email=email[:100],
-            phone=", ".join(contact.get("phones") or [])[:100] or None,
+            phone=", ".join(contact.get("phones", []))[:100] or None,
             source_url=source_url,
         )
 

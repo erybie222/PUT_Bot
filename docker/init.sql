@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS office_hours (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     location VARCHAR(100),
+    comment TEXT,
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_office_hours UNIQUE (staff_id, day_of_week, start_time)

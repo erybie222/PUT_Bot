@@ -59,6 +59,7 @@ def main() -> None:
                 )
                 normalized_major_name = major.replace(" ", "%20")
                 major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
+                
                 process_full_catalog(cursor, major_catalog_url, major_id=major_id)
 
             # English majors

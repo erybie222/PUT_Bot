@@ -1,8 +1,8 @@
 import pdfplumber
 from typing import Callable
 from psycopg import Cursor as DBCursor
-from src.database.connection import get_db_connection, close_pool
 from src.database.queries import get_major_id, upsert_threshold
+
 
 # Column definitions for specific years
 YEAR_COLUMNS = {
@@ -53,7 +53,7 @@ def process_pdf(cursor: DBCursor, file_path: str) -> None:
         # Skip the header row (index 0)
         for row in table[1:]:
             raw_name = row[0]
-            clean_name = raw_name.split('/')[0].strip().lower()
+            clean_name = raw_name.split('/')[0].strip()
 
             print(f"\nProcessing: {clean_name.capitalize()}")
             major_id = get_major_id(cursor, clean_name, 'bachelor-of-engineering', 'full-time')

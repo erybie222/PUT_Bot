@@ -71,7 +71,7 @@ def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str
     """
     cursor.execute("""
         SELECT id FROM majors
-        WHERE name = %s AND degree = %s AND study_mode = %s;
+        WHERE LOWER(name) = LOWER(%s) AND degree = %s AND study_mode = %s;
     """, (major_name, degree, study_mode))
 
     result = cursor.fetchone()
@@ -288,6 +288,7 @@ def insert_office_hour(
     start_time: str,
     end_time: str,
     location: str | None,
+    comment: str | None,
     source_url: str,
 ) -> None:
     """
@@ -307,7 +308,7 @@ def insert_office_hour(
     """
     cursor.execute("""
         INSERT INTO office_hours
-        (staff_id, day_of_week, start_time, end_time, location, source_url)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        (staff_id, day_of_week, start_time, end_time, location, comment ,source_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (staff_id, day_of_week, start_time) DO NOTHING;
-    """, (staff_id, day_of_week, start_time, end_time, location, source_url))
+    """, (staff_id, day_of_week, start_time, end_time, location,comment, source_url))
