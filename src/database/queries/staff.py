@@ -8,6 +8,8 @@ def upsert_staff(
     first_name: str,
     last_name: str,
     academic_title: str | None,
+    position: str | None,
+    user_type: str | None,
     department: str | None,
     email: str,
     phone: str | None,
@@ -23,6 +25,8 @@ def upsert_staff(
         first_name: Given name(s) of the staff member.
         last_name: Family name of the staff member.
         academic_title: Academic title prefix (e.g. ``"dr hab. inż."``); can be None.
+        position: Employment position/rank (e.g. ``"Profesor"``, ``"Adiunkt"``); can be None.
+        user_type: Informator user type (e.g. ``"employee_educational"``); can be None.
         department: Name of the unit the member belongs to (FK to ``departments``); can be None.
         email: University e-mail address, used as the natural key for upserts.
         phone: Phone number(s); can be None when unavailable.
@@ -33,19 +37,21 @@ def upsert_staff(
     """
     cursor.execute("""
         INSERT INTO staff
-        (first_name, last_name, academic_title, department, email, phone, source_url)
-        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        (first_name, last_name, academic_title, position, user_type, department, email, phone, source_url)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (email)
         DO UPDATE SET
             first_name = EXCLUDED.first_name,
             last_name = EXCLUDED.last_name,
             academic_title = EXCLUDED.academic_title,
+            position = EXCLUDED.position,
+            user_type = EXCLUDED.user_type,
             department = EXCLUDED.department,
             phone = EXCLUDED.phone,
             source_url = EXCLUDED.source_url,
             last_updated = CURRENT_TIMESTAMP
         RETURNING id;
-    """, (first_name, last_name, academic_title, department, email, phone, source_url))
+    """, (first_name, last_name, academic_title, position, user_type, department, email, phone, source_url))
     return cursor.fetchone()[0]
 
 

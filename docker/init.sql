@@ -64,11 +64,23 @@ CREATE TABLE IF NOT EXISTS staff (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     academic_title VARCHAR(100),
+    position VARCHAR(100),
+    user_type VARCHAR(50),
     department VARCHAR(100) CONSTRAINT fk_staff_department REFERENCES departments(name),
     email VARCHAR(100) CONSTRAINT uk_staff_email UNIQUE,
     phone VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS staff_functions (
+    id SERIAL PRIMARY KEY,
+    staff_id INT NOT NULL CONSTRAINT fk_staff_functions_staff REFERENCES staff(id) ON DELETE CASCADE,
+    function_name VARCHAR(150) NOT NULL,
+    department_name VARCHAR(100),
+    source_url TEXT,
+    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_staff_function UNIQUE (staff_id, function_name, department_name)
 );
 
 CREATE TABLE IF NOT EXISTS office_hours (

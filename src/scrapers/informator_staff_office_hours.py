@@ -8,6 +8,7 @@ from requests.exceptions import RequestException
 from database.queries.office_hours import delete_office_hours_by_id, insert_office_hour
 from database.queries.departments import upsert_department
 from database.queries.staff import upsert_staff
+from database.queries.staff_functions import insert_staff_function
 
 BASE_URL = "https://informator.put.poznan.pl"
 FACULTY_SYMBOL = "WIiT"
@@ -168,27 +169,34 @@ def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
         page += 1
 
 
-def pick_department(positions: dict, unit_names_by_id: dict[int, tuple[str, int]]) -> str | None:
+def pick_primary_position(
+    positions: dict, unit_names_by_id: dict[int, tuple[str, int]]
+) -> tuple[str | None, str | None]:
     """
-    Choose the most specific unit among a person's employment positions.
+    Choose a person's primary (unit, position name) from their positions.
 
-    A person can hold several positions. The deepest unit in the faculty tree is chosen.
+    A person can hold several positions. The one in the deepest unit of the
+    faculty tree is chosen, so the unit and the position name stay consistent
+    (both come from the same position).
 
     Args:
         positions: ``employment.data.positions`` mapping from the card payload.
         unit_names_by_id: Mapping of unit ID to (Polish name, tree depth).
 
     Returns:
-        str | None: Unit name, or None when no position is within unit.
+        tuple[str | None, str | None]: ``(unit name, position name)``; either
+        element is None when no position is within a known WIiT unit.
     """
     best_name = None
+    best_position = None
     best_depth = -1
     for position in positions.values():
         department = position.get("department") or {}
         unit = unit_names_by_id.get(department.get("id"))
         if unit and unit[1] > best_depth:
             best_name, best_depth = unit[0], unit[1]
-    return best_name
+            best_position = ((position.get("name") or {}).get("pl") or "").strip() or None
+    return best_name, best_position
 
 
 def build_location(meeting: dict) -> str | None:
@@ -250,6 +258,42 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
     return stored
 
 
+def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url: str) -> int:
+    """
+    Store the administrative functions held by one staff member.
+
+    A function (e.g. ``"Dyrektor instytutu"``) is distinct from the person's
+    position and department. Rows are inserted only — stale functions are not
+    pruned, as the pipeline is re-run against a freshly created database.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        staff_id: ID of the staff record the functions belong to.
+        functions: ``employment.data.functions`` mapping from the card payload
+            (keyed by UUID; can be an explicit ``null``).
+        source_url: Card URL used for provenance tracking.
+
+    Returns:
+        int: Number of functions stored.
+    """
+    stored = 0
+    for function in (functions or {}).values():
+        name = ((function.get("name") or {}).get("pl") or "").strip()
+        if not name:
+            continue
+        department = ((function.get("department") or {}).get("name") or {}).get("pl")
+        department = (department or "").strip()[:100] or None
+        insert_staff_function(
+            cursor=cursor,
+            staff_id=staff_id,
+            function_name=name[:150],
+            department_name=department,
+            source_url=source_url,
+        )
+        stored += 1
+    return stored
+
+
 def process_informator(cursor: DBCursor) -> None:
     """
     Scrape all WIiT units, staff and office hours into PostgreSQL.
@@ -299,7 +343,7 @@ def process_informator(cursor: DBCursor) -> None:
         )
     print(f"Stored {len(units) - 1} units of {FACULTY_SYMBOL}.")
 
-    processed = skipped = hours_total = 0
+    processed = skipped = hours_total = functions_total = 0
     for item in fetch_staff(session, faculty["id"]):
         basic = (item["modules"].get("basic", {}) or {}).get("data", {}) or {}
         contact = (item["modules"].get("contact", {}) or {}).get("data", {}) or {}
@@ -315,16 +359,21 @@ def process_informator(cursor: DBCursor) -> None:
             continue
 
         source_url = f"{BASE_URL}/app/card/view/{item['uuid']}"
+        department, position = pick_primary_position(employment.get("positions", {}) or {}, unit_names_by_id)
         staff_id = upsert_staff(
             cursor=cursor,
             first_name=first_name[:50],
             last_name=last_name[:50],
             academic_title=(basic.get("title", "") or "").strip()[:100] or None,
-            department=pick_department(employment.get("positions", {}) or {}, unit_names_by_id),
+            position=position,
+            user_type=(item.get("user_type") or "").strip()[:50] or None,
+            department=department,
             email=email[:100],
             phone=", ".join(contact.get("phones", []))[:100] or None,
             source_url=source_url,
         )
+
+        functions_total += store_functions(cursor, staff_id, employment.get("functions", {}) or {}, source_url)
 
         try:
             hours = process_office_hours(cursor, session, staff_id, item["uuid"], source_url)
@@ -340,7 +389,7 @@ def process_informator(cursor: DBCursor) -> None:
 
     print(
         f"\nInformator done: {processed} staff members stored "
-        f"({skipped} skipped), {hours_total} office-hours slots."
+        f"({skipped} skipped), {hours_total} office-hours slots, {functions_total} functions."
     )
 
 

@@ -4,6 +4,7 @@ from database.queries.departments import delete_departments
 from database.queries.courses import delete_courses
 from database.queries.admission_thresholds import delete_admission_thresholds
 from database.queries.office_hours import delete_office_hours
+from database.queries.staff_functions import delete_staff_functions
 from database.connection import get_db_connection, close_pool
 
 def clean_db() -> None:
@@ -14,6 +15,7 @@ def clean_db() -> None:
                 print("Connected to database.")
                 cursor = connection.cursor()
                 delete_office_hours(cursor)
+                delete_staff_functions(cursor)
                 delete_staff(cursor)
                 delete_departments(cursor)
                 delete_courses(cursor)
