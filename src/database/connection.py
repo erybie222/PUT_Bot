@@ -2,11 +2,9 @@
 
 from collections.abc import Iterator
 from contextlib import contextmanager
-
 from psycopg import Connection
 from psycopg_pool import ConnectionPool
-
-from src.config import DatabaseSettings
+from config import DatabaseSettings
 
 # Single pool shared by the whole process; created lazily on first use.
 _pool: ConnectionPool | None = None

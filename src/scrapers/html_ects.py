@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 
 from psycopg import Cursor as DBCursor
-from src.database.queries import upsert_course
+from database.queries.courses import upsert_course
 
 
 def parse_hours(hours_str: str) -> tuple[int, bool]:

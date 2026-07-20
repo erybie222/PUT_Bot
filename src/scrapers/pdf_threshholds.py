@@ -1,7 +1,8 @@
 import pdfplumber
 from typing import Callable
 from psycopg import Cursor as DBCursor
-from src.database.queries import get_major_id, upsert_threshold
+from database.queries.majors import get_major_id
+from database.queries.admission_thresholds import upsert_threshold
 
 
 # Column definitions for specific years

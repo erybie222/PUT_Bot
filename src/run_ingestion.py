@@ -1,16 +1,16 @@
 """Project entry point for loading WIiT data into PostgreSQL."""
-from src.database.queries import create_major, initialize_lookups
-from src.database.connection import get_db_connection, close_pool
-from src.scrapers.html_ects import process_full_catalog
-from src.scrapers.informator_staff_office_hours import process_informator
-from src.scrapers.pdf_threshholds import process_pdf
+from database.queries.faculties import initialize_lookups
+from database.queries.majors import upsert_major
+from database.connection import get_db_connection, close_pool
+from scrapers.html_ects import process_full_catalog
+from scrapers.informator_staff_office_hours import process_informator
+from scrapers.pdf_threshholds import process_pdf
 from datetime import datetime
 
 CURRENT_YEAR = int(datetime.now().year)
 
-THRESHOLDS_PDF_PATH = f"data/progi punktowe {CURRENT_YEAR}-{CURRENT_YEAR - 4}.pdf"
+THRESHOLDS_PDF_PATH = f"data/progi punktowe {CURRENT_YEAR - 1}-{CURRENT_YEAR - 5}.pdf"
 BASE_ECTS_URL = f"https://put.poznan.pl/karty-ects/{CURRENT_YEAR}_{CURRENT_YEAR + 1}"
-print(BASE_ECTS_URL, THRESHOLDS_PDF_PATH)
 STUDY_PATH = "stacjonarne/studia%20pierwszego%20stopnia"
 
 # Dictionary of WIiT majors with custom ECTS path segment support
@@ -52,7 +52,7 @@ def main() -> None:
 
             # Inserting WIiT majors if they don't exist and then courses for each major
             for major in WIIT_MAJORS_PL_FIRST_CYCLE:
-                major_id = create_major(
+                major_id = upsert_major(
                     cursor,
                     major_name=major,
                     degree='bachelor-of-engineering',
@@ -68,7 +68,7 @@ def main() -> None:
 
             # English majors
             for major in WIIT_MAJORS_EN_FIRST_CYCLE:
-                major_id = create_major(
+                major_id = upsert_major(
                     cursor,
                     major_name=major[0],
                     degree='bachelor-of-engineering',

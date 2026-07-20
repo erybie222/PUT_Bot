@@ -5,12 +5,9 @@ from requests import Session
 from psycopg import Cursor as DBCursor
 from requests.exceptions import RequestException
 
-from src.database.queries import (
-    delete_office_hours,
-    insert_office_hour,
-    upsert_department,
-    upsert_staff,
-)
+from database.queries.office_hours import delete_office_hours_by_id, insert_office_hour
+from database.queries.departments import upsert_department
+from database.queries.staff import upsert_staff
 
 BASE_URL = "https://informator.put.poznan.pl"
 FACULTY_SYMBOL = "WIiT"
@@ -146,7 +143,7 @@ def iter_units(node: dict, depth: int = 0) -> Iterator[tuple[dict, int]]:
         yield from iter_units(child, depth + 1)
 
 
-def fetch_employees(session: Session, unit_id: int) -> Iterator[dict]:
+def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
     """
     Yield all employee items of a unit (including sub-units), page by page.
 
@@ -233,7 +230,7 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
     meetings_data = (modules.get("meetings", {}) or {}).get("data", {}) or {}
     meetings = meetings_data.get("meetings", {}) or {}
 
-    delete_office_hours(cursor, staff_id)
+    delete_office_hours_by_id(cursor, staff_id)
     stored = 0
     for meeting in meetings.values():
         weekday = WEEKDAYS_PL.get(meeting.get("weekday"))
@@ -303,7 +300,7 @@ def process_informator(cursor: DBCursor) -> None:
     print(f"Stored {len(units) - 1} units of {FACULTY_SYMBOL}.")
 
     processed = skipped = hours_total = 0
-    for item in fetch_employees(session, faculty["id"]):
+    for item in fetch_staff(session, faculty["id"]):
         basic = (item["modules"].get("basic", {}) or {}).get("data", {}) or {}
         contact = (item["modules"].get("contact", {}) or {}).get("data", {}) or {}
         employment = (item["modules"].get("employment", {}) or {}).get("data", {}) or {}
