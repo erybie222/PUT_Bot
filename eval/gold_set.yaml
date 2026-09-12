@@ -1,0 +1,292 @@
+# Evaluation gold set for the future structured (function-calling) QA path. Every
+# expected_answer/expected_data value is manually verified against `source` — per the
+# project's "zero invented numbers" rule.
+#
+
+meta:
+  last_verified: "2026-09-12"
+  sources:
+    progi: &progi "data/progi punktowe 2025-2021.pdf"
+    przedmioty: &przedmioty "https://put.poznan.pl/karty-ects/2026_2027/Informatyka/stacjonarne/studia%20pierwszego%20stopnia"
+    przedmioty_cyber: &przedmioty_cyber "https://put.poznan.pl/karty-ects/2026_2027/Cyberbezpieczeństwo/stacjonarne/studia%20pierwszego%20stopnia"
+    kierunki: &kierunki "src/run_ingestion.py"
+    informator: &informator "informator.put.poznan.pl API"
+
+# ---------------------------------------------------------------------------
+# Category 1 — progi_punktowe (admission thresholds)
+# ---------------------------------------------------------------------------
+progi_punktowe:
+  - id: prog-informatyka-2025
+    question: "Jaki był próg punktowy na Informatykę (stacjonarne, I stopnia) w roku 2025?"
+    entities: {kierunek: "Informatyka", rok: 2025, tryb: "stacjonarne", stopien: "pierwszego stopnia"}
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    source: *progi
+
+  - id: prog-bioinformatyka-2021
+    question: "Jaki był próg na Bioinformatykę w 2021 roku?"
+    entities: {kierunek: "Bioinformatyka", rok: 2021}
+    expected_data: {min_points: 525.50, capacity: 60}
+    expected_answer: "525,50 pkt, limit przyjęć: 60 miejsc."
+    notes: "Limit przyjęć zmieniał się między latami (70 w 2022, 60 w 2021) — dobry test, że bot nie zakłada stałego limitu."
+    source: *progi
+
+  - id: prog-cyberbezpieczenstwo-2025
+    question: "Jaki był próg na Cyberbezpieczeństwo w 2025 roku?"
+    entities: {kierunek: "Cyberbezpieczeństwo", rok: 2025}
+    expected_data: {min_points: 807.50, capacity: 90}
+    expected_answer: "807,50 pkt, limit przyjęć: 90 miejsc."
+    notes: "Nowy kierunek — 2025 to jedyny rok z danymi w źródle."
+    source: *progi
+
+  - id: prog-edge-cyberbezpieczenstwo-brak-danych
+    question: "Jaki był próg na Cyberbezpieczeństwo w 2022 roku?"
+    entities: {kierunek: "Cyberbezpieczeństwo", rok: 2022}
+    expected_data: null
+    expected_answer: "Nie wiem — kierunek Cyberbezpieczeństwo nie istniał / nie ma danych o progu za 2022 rok w źródle."
+    edge_case: "rok bez danych (kierunek za młody), nie wolno ekstrapolować"
+    source: *progi
+
+  - id: prog-edge-kierunek-poza-zakresem
+    question: "Jaki był próg na Automatykę i robotykę w 2025 roku?"
+    entities: {kierunek: "Automatyka i robotyka", rok: 2025}
+    expected_data: null
+    expected_answer: "Nie wiem — Automatyka i robotyka nie jest kierunkiem WIiT obsługiwanym przez ten projekt."
+    edge_case: "kierunek istnieje w źródle PDF, ale poza zakresem WIiT tego projektu"
+    notes: "Dane w PDF istnieją, ale kierunek nie jest w WIIT_MAJORS_* i nigdy nie trafia do bazy."
+    source: *progi
+
+  - id: prog-edge-rok-w-przyszlosci
+    question: "Jaki będzie próg na Informatykę w 2030 roku?"
+    entities: {kierunek: "Informatyka", rok: 2030}
+    expected_data: null
+    expected_answer: "Nie wiem — progi na przyszłe lata nie są znane, tylko historyczne dane z rekrutacji."
+    edge_case: "rok spoza zakresu danych źródłowych"
+    source: *progi
+
+  - id: prog-edge-tryb-niestacjonarny
+    question: "Jaki był próg na Informatykę niestacjonarną w 2024 roku?"
+    entities: {kierunek: "Informatyka", rok: 2024, tryb: "niestacjonarne"}
+    expected_data: null
+    expected_answer: "Nie wiem — projekt zbiera dziś tylko studia stacjonarne pierwszego stopnia."
+    edge_case: "tryb studiów spoza obecnego zakresu ingestii"
+    notes: "Patrz project_plan.md TODO: tryby niestacjonarne nie są jeszcze ingestowane."
+    source: *progi
+
+# ---------------------------------------------------------------------------
+# Category 2 — plany_studiow (study plans / ECTS courses)
+# ---------------------------------------------------------------------------
+plany_studiow:
+  - id: przedmiot-alin-semestr
+    question: "W którym semestrze na Informatyce jest 'Algebra liniowa' i ile ma ECTS?"
+    entities: {kierunek: "Informatyka", przedmiot: "Algebra liniowa"}
+    expected_data: {semester: 1, ects: 2, is_obligatory: true, hours_lecture: 16, hours_classes: 16, assessment_type: "Zaliczenie z ocena"}
+    expected_answer: "Semestr 1, przedmiot obowiązkowy, 2 ECTS (16h wykładu, 16h ćwiczeń), zaliczenie na ocenę (bez egzaminu)."
+    source: *przedmioty
+
+  - id: przedmiot-anam-egzamin
+    question: "Czy 'Analiza matematyczna' na Informatyce kończy się egzaminem i ile ma ECTS?"
+    entities: {kierunek: "Informatyka", przedmiot: "Analiza matematyczna"}
+    expected_data: {semester: 1, ects: 6, is_obligatory: true, hours_lecture: 30, hours_classes: 30, assessment_type: "Egzamin"}
+    expected_answer: "Tak, egzamin. Semestr 1, obowiązkowy, 6 ECTS (30h wykładu, 30h ćwiczeń)."
+    notes: "assessment_type w bazie to dosłownie string 'Egzamin' wykryty po markerze (E) w komórce godzin wykładowych."
+    source: *przedmioty
+
+  - id: przedmiot-sop-semestr2
+    question: "Ile ECTS ma 'Systemy operacyjne' na Informatyce i czy to egzamin?"
+    entities: {kierunek: "Informatyka", przedmiot: "Systemy operacyjne"}
+    expected_data: {semester: 2, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
+    expected_answer: "5 ECTS, semestr 2, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
+    source: *przedmioty
+
+  - id: przedmiot-python-obieralny
+    question: "Czy 'Podstawy programowania - Python' jest obowiązkowe na pierwszym semestrze Informatyki?"
+    entities: {kierunek: "Informatyka", przedmiot: "Podstawy programowania - Python", semestr: 1}
+    expected_data: {semester: 1, ects: 4, is_obligatory: false, hours_lecture: 24, hours_lab: 30}
+    expected_answer: "Nie, to przedmiot obieralny (do wyboru) w grupie wprowadzającej do programowania, 4 ECTS."
+    source: *przedmioty
+
+  - id: przedmiot-suma-ects-semestr1-obowiazkowe
+    question: "Ile punktów ECTS łącznie mają obowiązkowe przedmioty w semestrze 1 na Informatyce?"
+    entities: {kierunek: "Informatyka", semestr: 1, is_obligatory: true}
+    expected_data:
+      courses: {ALIN: 2, ANAM: 6, JANG: 2, LOG: 3, MATD: 6, NINF: 3, BHP: 0, BIBL: 0}
+      total_ects: 22
+    expected_answer: "22 ECTS (Algebra liniowa 2 + Analiza matematyczna 6 + Język angielski 2 + Logika obliczeniowa 3 + Matematyka dyskretna 6 + Narzędzia informatyki 3 + BHP 0 + Usługi biblioteczne 0)."
+    notes: "Dobry test dla przyszłego narzędzia get_courses(...) — wymaga agregacji (SUM), nie tylko listy wierszy."
+    source: *przedmioty
+
+  - id: przedmiot-edge-nieistniejacy
+    question: "Ile ECTS ma przedmiot 'Głębokie sieci neuronowe' na pierwszym semestrze Informatyki?"
+    entities: {kierunek: "Informatyka", przedmiot: "Głębokie sieci neuronowe", semestr: 1}
+    expected_data: null
+    expected_answer: "Nie wiem — nie ma takiego przedmiotu w planie studiów Informatyki na semestrze 1."
+    edge_case: "nieistniejący przedmiot — bot nie może zgadywać ani podstawiać podobnej nazwy"
+    source: *przedmioty
+
+  - id: przedmiot-wdp-cyberbezpieczenstwo-egzamin
+    question: "Ile ECTS ma 'Wprowadzenie do programowania' na Cyberbezpieczeństwie i czy to egzamin?"
+    entities: {kierunek: "Cyberbezpieczeństwo", przedmiot: "Wprowadzenie do programowania"}
+    expected_data: {semester: 1, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
+    expected_answer: "5 ECTS, semestr 1, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
+    source: *przedmioty_cyber
+
+  - id: przedmiot-wdc-cyberbezpieczenstwo-projekt
+    question: "Ile godzin projektu ma 'Wstęp do cyberbezpieczeństwa' i ile to ECTS?"
+    entities: {kierunek: "Cyberbezpieczeństwo", przedmiot: "Wstęp do cyberbezpieczeństwa"}
+    expected_data: {semester: 1, ects: 4, is_obligatory: true, hours_lecture: 30, hours_project: 30, assessment_type: "Zaliczenie z ocena"}
+    expected_answer: "30h projektu, 4 ECTS, semestr 1, obowiązkowy, bez egzaminu (zaliczenie na ocenę)."
+    notes: "Przykład kursu z niezerowymi hours_project — pozostałe przykłady w tym pliku mają P=0."
+    source: *przedmioty_cyber
+
+  - id: przedmiot-edge-ta-sama-nazwa-inny-kierunek
+    question: "Ile ECTS ma 'Algebra liniowa' — na Cyberbezpieczeństwie i na Informatyce?"
+    entities: {przedmiot: "Algebra liniowa", kierunki: ["Cyberbezpieczeństwo", "Informatyka"]}
+    expected_data:
+      Cyberbezpieczeństwo: {course_code: "S1Cybez1>ALIN", ects: 5, assessment_type: "Egzamin", hours_lecture: 30, hours_classes: 30}
+      Informatyka: {course_code: "S1Inf1>ALIN", ects: 2, assessment_type: "Zaliczenie z ocena", hours_lecture: 16, hours_classes: 16}
+    expected_answer: "To dwa różne przedmioty mimo tej samej nazwy: na Cyberbezpieczeństwie 5 ECTS z egzaminem (30h/30h), na Informatyce 2 ECTS bez egzaminu (16h/16h)."
+    edge_case: "ten sam `name`, różny `course_code` i różna treść w zależności od kierunku — test na to, że bot dopytuje/rozróżnia po kierunku, a nie dopasowuje tylko po nazwie przedmiotu"
+    source: *przedmioty_cyber
+
+# ---------------------------------------------------------------------------
+# Category 3 — kierunki (majors)
+# ---------------------------------------------------------------------------
+kierunki:
+  - id: kierunek-lista-wiit
+    question: "Jakie kierunki I stopnia stacjonarne (obsługiwane przez tego bota) prowadzi WIiT?"
+    expected_data:
+      majors: ["Informatyka", "Bioinformatyka", "Teleinformatyka", "Cyberbezpieczeństwo", "Mikroelektronika i komunikacja cyfrowa", "Sztuczna inteligencja"]
+    expected_answer: "Informatyka, Bioinformatyka, Teleinformatyka, Cyberbezpieczeństwo, Mikroelektronika i komunikacja cyfrowa, Sztuczna inteligencja (ta ostatnia ma też tor anglojęzyczny: Artificial Intelligence)."
+    notes: "To lista tego, co faktycznie jest w WIIT_MAJORS_*, nie pełna oferta WIiT — dobry test, żeby bot nie 'dopowiadał' kierunków spoza swojego zakresu."
+    source: *kierunki
+
+  - id: kierunek-ai-jezyk
+    question: "Czy Sztuczna inteligencja jest kierunkiem anglojęzycznym?"
+    entities: {kierunek: "Sztuczna inteligencja"}
+    expected_data: {is_english: true, degree: "bachelor-of-engineering", study_mode: "full-time"}
+    expected_answer: "Tak — to jedyny w pełni anglojęzyczny (is_english=true) kierunek I stopnia w tym projekcie."
+    source: *kierunki
+
+  - id: kierunek-tryb-teleinformatyka
+    question: "Jaki tryb studiów jest ingestowany dla Teleinformatyki — stacjonarny czy niestacjonarny?"
+    entities: {kierunek: "Teleinformatyka"}
+    expected_data: {study_mode: "full-time"}
+    expected_answer: "Stacjonarny (`full-time`) — to jedyny tryb, jaki ten projekt dziś zbiera, dla wszystkich kierunków."
+    source: *kierunki
+
+  - id: kierunek-edge-poza-zakresem
+    question: "Czy WIiT prowadzi kierunek 'Informatyka i ekonometria'?"
+    entities: {kierunek: "Informatyka i ekonometria"}
+    expected_data: null
+    expected_answer: "Nie wiem — taki kierunek nie jest w bazie tego projektu."
+    edge_case: "nieistniejący/nieobsługiwany kierunek — bot nie może potwierdzić czegoś, czego nie ingestuje"
+    notes: "Nie ma go w WIIT_MAJORS_PL_FIRST_CYCLE/WIIT_MAJORS_EN_FIRST_CYCLE."
+    source: *kierunki
+
+# ---------------------------------------------------------------------------
+# Category 4 — kadra_i_jednostki (staff, staff_functions, departments)
+# ---------------------------------------------------------------------------
+kadra_i_jednostki:
+  - id: dept-zaklady-instytutu-informatyki
+    question: "Jakie zakłady/jednostki wchodzą w skład Instytutu Informatyki?"
+    entities: {jednostka: "Instytut Informatyki"}
+    expected_data:
+      children: ["Europejskie Centrum Bioinformatyki i Genomiki", "Zakład Badań Operacyjnych i Sztucznej Inteligencji", "Zakład Inteligentnych Systemów Wspomagania Decyzji", "Zakład Inżynierii Oprogramowania", "Zakład Systemów Informatycznych", "Zakład Technologii Przetwarzania Danych", "Zakład Teorii Algorytmów i Systemów Programowania", "Zakład Uczenia Maszynowego"]
+    expected_answer: "7 zakładów (Badań Operacyjnych i SI, Inteligentnych Systemów Wspomagania Decyzji, Inżynierii Oprogramowania, Systemów Informatycznych, Technologii Przetwarzania Danych, Teorii Algorytmów i Systemów Programowania, Uczenia Maszynowego) + Europejskie Centrum Bioinformatyki i Genomiki."
+    source: *informator
+
+  - id: dept-jednostka-nadrzedna
+    question: "Jaka jest jednostka nadrzędna (parent) dla Zakładu Uczenia Maszynowego?"
+    entities: {jednostka: "Zakład Uczenia Maszynowego"}
+    expected_data: {parent: "Instytut Informatyki"}
+    expected_answer: "Instytut Informatyki."
+    source: *informator
+
+  - id: dept-parent-null-instytut
+    question: "Czy Instytut Radiokomunikacji ma jednostkę nadrzędną inną niż sam Wydział?"
+    entities: {jednostka: "Instytut Radiokomunikacji"}
+    expected_data: {parent: null}
+    expected_answer: "Nie — leży bezpośrednio pod WIiT, tak jak wszystkie instytuty i dziekanat WIiT."
+    notes: "W bazie to parent = NULL w tabeli departments."
+    source: *informator
+
+  - id: dept-edge-brak-podjednostek
+    question: "Jakie zakłady wchodzą w skład Instytutu Radiokomunikacji?"
+    entities: {jednostka: "Instytut Radiokomunikacji"}
+    expected_data: {children: []}
+    expected_answer: "Żadne — według aktualnego drzewa organizacyjnego Informatora Instytut Radiokomunikacji nie ma podległych zakładów w WIiT (w przeciwieństwie do Instytutu Informatyki)."
+    edge_case: "pusta lista podjednostek — nie mylić z brakiem danych"
+    source: *informator
+
+  - id: staff-dyrektor-instytutu
+    question: "Kto jest dyrektorem Instytutu Radiokomunikacji?"
+    entities: {jednostka: "Instytut Radiokomunikacji", funkcja: "Dyrektor instytutu"}
+    expected_data: {first_name: "Hanna", last_name: "Bogucka", academic_title: "prof. dr hab. inż.", position: "Profesor", function_name: "Dyrektor instytutu"}
+    expected_answer: "prof. dr hab. inż. Hanna Bogucka."
+    notes: "staff_functions ('Dyrektor instytutu') jest odrębne od staff.position ('Profesor') — dobry test, że bot nie miesza tych dwóch pól."
+    source: *informator
+
+  - id: staff-administracyjny-dziekanat
+    question: "Jakie stanowisko ma mgr Beata Banaszak i w jakiej jednostce pracuje?"
+    entities: {imie: "Beata", nazwisko: "Banaszak"}
+    expected_data: {position: "Specjalista ds. dydaktyki", department: "Dziekanat Wydziału Informatyki i Telekomunikacji", user_type: "employee_administrative"}
+    expected_answer: "Specjalista ds. dydaktyki, Dziekanat Wydziału Informatyki i Telekomunikacji — pracownik administracyjny, nie dydaktyczny."
+    source: *informator
+
+  - id: staff-edge-nieistniejacy
+    question: "Na jakim stanowisku pracuje prof. Zenobiusz Nieistniejący z WIiT?"
+    entities: {nazwisko: "Nieistniejący"}
+    expected_data: null
+    expected_answer: "Nie wiem — nie ma takiej osoby w bazie danych WIiT."
+    edge_case: "nieistniejąca osoba — bot nie może zmyślić stanowiska/jednostki"
+    source: *informator
+
+# ---------------------------------------------------------------------------
+# Category 5 — konsultacje (office hours)
+# ---------------------------------------------------------------------------
+konsultacje:
+  - id: konsultacje-andrzejewski
+    question: "O której i gdzie ma konsultacje dr inż. Witold Andrzejewski?"
+    entities: {imie: "Witold", nazwisko: "Andrzejewski"}
+    expected_data: {day_of_week: "poniedziałek", start_time: "09:45", end_time: "13:15", location: "A23 CW17", comment: "najlepiej po umówieniu mailowym"}
+    expected_answer: "Poniedziałek 09:45–13:15, sala A23 CW17 (komentarz: najlepiej po umówieniu mailowym)."
+    source: *informator
+
+  - id: konsultacje-wojciechowski-marek-wtorek
+    question: "Czy dr hab. inż. Marek Wojciechowski (Zakład Technologii Przetwarzania Danych) ma konsultacje we wtorek, i o której?"
+    entities: {imie: "Marek", nazwisko: "Wojciechowski", jednostka: "Zakład Technologii Przetwarzania Danych"}
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_answer: "Tak, wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    notes: "Pytanie celowo zamknięte (o konkretną, zweryfikowaną osobę) — NIE 'kto z zakładu ma konsultacje we wtorek', bo tego z próbki ~25/271 osób nie da się rzetelnie potwierdzić jako kompletnej listy."
+    source: *informator
+
+  - id: konsultacje-edge-brak-opublikowanych
+    question: "O której konsultacje ma prof. dr hab. inż. Hanna Bogucka?"
+    entities: {imie: "Hanna", nazwisko: "Bogucka"}
+    expected_data: {meetings: []}
+    expected_answer: "Ta osoba obecnie nie ma opublikowanego harmonogramu konsultacji w Informatorze."
+    edge_case: "osoba istnieje w bazie, ale bez zapisanych office_hours — to NIE to samo co 'osoba nie istnieje', bot nie powinien tych dwóch przypadków mylić"
+    source: *informator
+
+  - id: konsultacje-edge-niejednoznaczne-imie-i-nazwisko
+    question: "Kiedy konsultacje ma dr Paweł Wojciechowski?"
+    entities: {imie: "Paweł", nazwisko: "Wojciechowski"}
+    expected_data: null
+    expected_answer: null
+    expected_behavior: >
+      Bot NIE zgaduje i NIE wybiera pierwszego wyniku — na WIiT są dwie różne
+      osoby o identycznym imieniu i nazwisku: dr hab. inż. Paweł Wojciechowski
+      (Zakład Systemów Informatycznych, profesor uczelni) i dr inż. Paweł
+      Wojciechowski (Zakład Teorii Algorytmów i Systemów Programowania,
+      adiunkt). Musi dopytać o jednostkę/tytuł, zanim poda godziny.
+    edge_case: "realna niejednoznaczność w danych WIiT — to samo imię I nazwisko, nie tylko nazwisko (project_plan.md, sekcja 8)"
+    source: *informator
+
+  - id: konsultacje-edge-nieistniejaca-osoba
+    question: "Kiedy konsultacje ma prof. Zenobiusz Nieistniejący z WIiT?"
+    entities: {nazwisko: "Nieistniejący"}
+    expected_data: null
+    expected_answer: "Nie wiem — nie ma takiej osoby w bazie danych WIiT."
+    edge_case: "nieistniejąca osoba — bot nie może zmyślić grafiku"
+    source: *informator
