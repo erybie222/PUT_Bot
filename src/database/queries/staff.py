@@ -2,6 +2,8 @@
 
 from psycopg import Cursor as DBCursor
 
+from database.serialization import row_to_dict
+
 
 def upsert_staff(
     cursor: DBCursor,
@@ -53,6 +55,47 @@ def upsert_staff(
         RETURNING id;
     """, (first_name, last_name, academic_title, position, user_type, department, email, phone, source_url))
     return cursor.fetchone()[0]
+
+
+def get_staff(
+    cursor: DBCursor,
+    last_name: str,
+    first_name: str | None = None,
+    department: str | None = None,
+) -> list[dict]:
+    """
+    Look up staff members by (case-insensitive) last name, optionally narrowed
+    by first name and/or department.
+
+    Returns every match instead of guessing one: WIiT has staff sharing the
+    same first and last name , so callers must handle
+    more than one row (e.g. by asking the user to disambiguate by department
+    or title) rather than picking the first result.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        last_name: Family name to look up, matched case-insensitively.
+        first_name: Optional case-insensitive exact filter on given name.
+        department: Optional case-insensitive exact filter on unit name.
+
+    Returns:
+        list[dict]: Matching rows (id, first_name, last_name, academic_title,
+            position, user_type, department, email, phone, source_url), empty
+            when nothing matches.
+    """
+    cursor.execute("""
+        SELECT id, first_name, last_name, academic_title, position, user_type,
+               department, email, phone, source_url
+        FROM staff
+        WHERE LOWER(last_name) = LOWER(%s)
+          AND (%s::text IS NULL OR LOWER(first_name) = LOWER(%s::text))
+          AND (%s::text IS NULL OR LOWER(department) = LOWER(%s::text))
+        ORDER BY first_name, last_name;
+    """, (last_name, first_name, first_name, department, department))
+
+    columns = ("id", "first_name", "last_name", "academic_title", "position",
+               "user_type", "department", "email", "phone", "source_url")
+    return [row_to_dict(columns, row) for row in cursor.fetchall()]
 
 
 def delete_staff(cursor: DBCursor) -> None:

@@ -2,6 +2,8 @@
 
 from psycopg import Cursor as DBCursor
 
+from database.serialization import row_to_dict
+
 
 def delete_office_hours_by_id(cursor: DBCursor, staff_id: int) -> None:
     """
@@ -54,6 +56,56 @@ def insert_office_hour(
         VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (staff_id, day_of_week, start_time) DO NOTHING;
     """, (staff_id, day_of_week, start_time, end_time, location,comment, source_url))
+
+
+def get_office_hour(
+    cursor: DBCursor,
+    staff_id: int,
+    day_of_week: str | None = None,
+) -> list[dict]:
+    """
+    Look up weekly office-hours slots for one staff member.
+
+    An empty list means the person currently has no published slots — distinct
+    from the person not existing at all (that's an empty get_staff() result).
+    Callers must not conflate the two (see eval/gold_set.yaml
+    konsultacje-edge-brak-opublikowanych).
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        staff_id: Foreign key pointing to the ``staff`` table (resolved
+            beforehand through get_staff).
+        day_of_week: Optional case-insensitive exact filter on Polish weekday
+            name (e.g. ``"poniedziałek"``).
+
+    Returns:
+        list[dict]: Matching rows (day_of_week, start_time, end_time, location,
+            comment, source_url, last_updated), ordered Monday..Sunday then by
+            start time; empty when nothing matches.
+    """
+    cursor.execute("""
+        SELECT day_of_week, start_time, end_time, location, comment,
+               source_url, last_updated
+        FROM office_hours
+        WHERE staff_id = %s
+          AND (%s::text IS NULL OR LOWER(day_of_week) = LOWER(%s::text))
+        ORDER BY
+            CASE day_of_week
+                WHEN 'poniedziałek' THEN 1
+                WHEN 'wtorek' THEN 2
+                WHEN 'środa' THEN 3
+                WHEN 'czwartek' THEN 4
+                WHEN 'piątek' THEN 5
+                WHEN 'sobota' THEN 6
+                WHEN 'niedziela' THEN 7
+                ELSE 8
+            END,
+            start_time;
+    """, (staff_id, day_of_week, day_of_week))
+
+    columns = ("day_of_week", "start_time", "end_time", "location", "comment",
+               "source_url", "last_updated")
+    return [row_to_dict(columns, row) for row in cursor.fetchall()]
 
 
 def delete_office_hours(cursor: DBCursor) -> None:

@@ -2,6 +2,8 @@
 
 from psycopg import Cursor as DBCursor
 
+from database.serialization import row_to_dict
+
 
 def upsert_department(
     cursor: DBCursor,
@@ -50,6 +52,48 @@ def upsert_department(
             source_url = EXCLUDED.source_url,
             last_updated = CURRENT_TIMESTAMP;
     """, (name, symbol, parent, unit_type, faculty, address, phone, email, source_url))
+
+
+def get_department(cursor: DBCursor, name: str) -> dict | None:
+    """
+    Look up one organizational unit by (case-insensitive) name, including its
+    direct sub-units.
+
+    A ``None`` return means the unit doesn't exist; an empty ``children`` list
+    means it exists but has no sub-units in the current organizational tree —
+    these are different situations and callers must not conflate them.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        name: Unit name to look up, matched case-insensitively.
+
+    Returns:
+        dict | None: The unit's row (name, symbol, parent, unit_type, faculty,
+            address, phone, email, source_url, last_updated) plus a
+            ``children`` list of direct sub-unit names, or None when the unit
+            does not exist.
+    """
+    cursor.execute("""
+        SELECT name, symbol, parent, unit_type, faculty, address, phone, email,
+               source_url, last_updated
+        FROM departments
+        WHERE LOWER(name) = LOWER(%s);
+    """, (name,))
+
+    row = cursor.fetchone()
+    if row is None:
+        return None
+
+    columns = ("name", "symbol", "parent", "unit_type", "faculty", "address",
+               "phone", "email", "source_url", "last_updated")
+    department = row_to_dict(columns, row)
+
+    cursor.execute("""
+        SELECT name FROM departments WHERE LOWER(parent) = LOWER(%s) ORDER BY name;
+    """, (department["name"],))
+    department["children"] = [child[0] for child in cursor.fetchall()]
+
+    return department
 
 
 def delete_departments(cursor: DBCursor) -> None:

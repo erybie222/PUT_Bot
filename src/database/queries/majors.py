@@ -2,6 +2,8 @@
 
 from psycopg import Cursor as DBCursor
 
+from database.serialization import row_to_dict
+
 
 def upsert_major(
     cursor: DBCursor,
@@ -60,6 +62,43 @@ def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str
 
     result = cursor.fetchone()
     return result[0] if result else None
+
+
+def get_major(
+    cursor: DBCursor,
+    major_name: str,
+    degree: str | None = None,
+    study_mode: str | None = None,
+) -> list[dict]:
+    """
+    Look up majors by (case-insensitive) name, optionally narrowed by degree/study mode.
+
+    Returns every matching row instead of guessing one: majors are unique by
+    (name, degree, study_mode), so a name-only lookup can legitimately return
+    more than one row and the caller must handle that (e.g. by asking the user
+    to disambiguate) rather than picking the first result.
+
+    Args:
+        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        major_name: Major name to look up, matched case-insensitively.
+        degree: Optional exact filter on degree (bachelor-of-engineering/masters).
+        study_mode: Optional exact filter on study mode (full-time/part-time).
+
+    Returns:
+        list[dict]: Matching rows (id, name, degree, study_mode, profile,
+            faculty, is_english), empty when nothing matches.
+    """
+    cursor.execute("""
+        SELECT id, name, degree, study_mode, profile, faculty, is_english
+        FROM majors
+        WHERE LOWER(name) = LOWER(%s)
+          AND (%s::text IS NULL OR degree = %s::text)
+          AND (%s::text IS NULL OR study_mode = %s::text)
+        ORDER BY name, degree, study_mode;
+    """, (major_name, degree, degree, study_mode, study_mode))
+
+    columns = ("id", "name", "degree", "study_mode", "profile", "faculty", "is_english")
+    return [row_to_dict(columns, row) for row in cursor.fetchall()]
 
 
 def delete_majors(cursor: DBCursor) -> None:
