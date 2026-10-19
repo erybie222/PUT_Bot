@@ -1,17 +1,13 @@
-"""LangChain tools wrapping the read-only queries in src/database/queries/*.py.
+"""LangChain tools over the ``get_*`` queries. Docstrings are written for the model.
 
-Each tool opens its own pooled connection via ``get_db_connection()`` and
-closes it before returning. Unlike the ingestion pipeline — which shares one
-connection/cursor and commits once at the end of a whole run — the online
-layer serves one question at a time and has no long-lived transaction to
-share, so a connection per call is the right granularity here.
-
-Every tool docstring is written for the LLM calling it, not for a human
-reader of this file: it says what the tool is for and, where it matters, how
-to react to an ambiguous or empty result. That behavior is part of the
-project's "zero invented numbers" rule — a tool must never be a hidden
-invitation to guess.
+Each tool returns its rows twice (``content_and_artifact``): as a JSON string the
+model reads, and raw in ``ToolMessage.artifact`` for evaluation. The content is
+serialised here, not by LangChain, which passes an empty list through as an
+empty message instead of ``"[]"``.
+One pooled connection per call — the online layer has no shared transaction.
 """
+
+import json
 
 from langchain_core.tools import tool
 
@@ -28,9 +24,9 @@ from database.queries.staff import get_staff as _get_staff
 from database.queries.staff_functions import get_staff_function as _get_staff_function
 
 
-@tool(parse_docstring=True)
-def get_faculties() -> list[dict]:
-    """List every faculty this system currently has data for.
+@tool(parse_docstring=True, response_format="content_and_artifact")
+def get_faculties() -> tuple[str, list[dict]]:
+    """List every faculty (wydział) this system currently has data for.
 
     Call this to check the system's own scope before answering a question
     about a faculty. If the one asked about isn't in the result, say you
@@ -38,40 +34,43 @@ def get_faculties() -> list[dict]:
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_faculties(cursor)
+            rows = _get_faculties(cursor)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
+@tool(parse_docstring=True, response_format="content_and_artifact")
 def get_major(
-    major_name: str,
+    major_name: str | None = None,
     degree: str | None = None,
     study_mode: str | None = None,
-) -> list[dict]:
-    """Look up majors (kierunki) by name.
+) -> tuple[str, list[dict]]:
+    """Look up majors (kierunki) by name, or list all of them.
 
-    Returns every match instead of one best guess. If more than one row comes
-    back, the name alone doesn't uniquely identify a major — ask the user
-    which degree/study mode they mean before answering.
+    Call with no arguments to list every major the system covers — do this
+    before claiming any major does or does not exist. Returns every match
+    instead of one best guess: if more than one row comes back for a name, it
+    doesn't uniquely identify a major, so ask which degree/study mode is meant.
 
     Args:
-        major_name: Major name to look up (case-insensitive).
+        major_name: Major name to look up (case-insensitive). Omit to list all majors.
         degree: Optional filter: "bachelor-of-engineering" or "masters".
         study_mode: Optional filter: "full-time" or "part-time".
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_major(cursor, major_name, degree, study_mode)
+            rows = _get_major(cursor, major_name, degree, study_mode)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
+@tool(parse_docstring=True, response_format="content_and_artifact")
 def get_admission_threshold(
     major_name: str,
     year: int,
     round: int | None = None,
     degree: str | None = None,
     study_mode: str | None = None,
-) -> list[dict]:
-    """Look up the admission points threshold (prog punktowy) for a major in a recruitment year.
+) -> tuple[str, list[dict]]:
+    """Look up the admission points threshold (próg punktowy) for a major in a recruitment year.
 
     An empty result means there is no stored threshold for that major/year —
     it may not have been offered that year, or the year may be outside the
@@ -86,18 +85,25 @@ def get_admission_threshold(
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_admission_threshold(cursor, major_name, year, round, degree, study_mode)
+            rows = _get_admission_threshold(cursor, major_name, year, round, degree, study_mode)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
+@tool(parse_docstring=True, response_format="content_and_artifact")
 def get_course(
     major_name: str,
     course_name: str | None = None,
     semester: int | None = None,
     is_obligatory: bool | None = None,
     is_english: bool | None = None,
-) -> list[dict]:
+) -> tuple[str, list[dict]]:
     """Look up study-plan courses (przedmioty) for a major.
+
+    An empty result means this major's study plan has no course matching those
+    filters — say so plainly instead of offering a similarly named course from
+    another semester or major. The same course name can carry different ECTS
+    and hours on different majors, so never present one major's figures as
+    universal.
 
     Args:
         major_name: Major name to look up (case-insensitive).
@@ -108,12 +114,13 @@ def get_course(
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_course(cursor, major_name, course_name, semester, is_obligatory, is_english)
+            rows = _get_course(cursor, major_name, course_name, semester, is_obligatory, is_english)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
-def get_department(name: str) -> dict | None:
-    """Look up one organizational unit (institute/division/dean's office) by name.
+@tool(parse_docstring=True, response_format="content_and_artifact")
+def get_department(name: str) -> tuple[str, dict | None]:
+    """Look up one organizational unit (jednostka: instytut, zakład, dziekanat) by name.
 
     The result includes "parent" (the unit directly above it, or null when it
     sits directly under the faculty) and "children" (its direct sub-units). A
@@ -126,16 +133,17 @@ def get_department(name: str) -> dict | None:
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_department(cursor, name)
+            rows = _get_department(cursor, name)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
+@tool(parse_docstring=True, response_format="content_and_artifact")
 def get_staff(
     last_name: str,
     first_name: str | None = None,
     department: str | None = None,
-) -> list[dict]:
-    """Look up staff members by last name.
+) -> tuple[str, list[dict]]:
+    """Look up staff members (pracownicy, kadra) by last name.
 
     Returns every match instead of one best guess. This faculty has staff
     members who share the same first and last name, so if more than one row
@@ -149,16 +157,17 @@ def get_staff(
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_staff(cursor, last_name, first_name, department)
+            rows = _get_staff(cursor, last_name, first_name, department)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
+@tool(parse_docstring=True, response_format="content_and_artifact")
 def get_staff_function(
     staff_id: int | None = None,
     function_name: str | None = None,
     department_name: str | None = None,
-) -> list[dict]:
-    """Look up administrative functions (e.g. who directs an institute), with the holder's staff details.
+) -> tuple[str, list[dict]]:
+    """Look up administrative functions (funkcje, np. dyrektor instytutu), with the holder's staff details.
 
     Use function_name/department_name for "who holds function X in unit Y"
     (e.g. function_name="Dyrektor instytutu"). Use staff_id (resolved via
@@ -172,11 +181,12 @@ def get_staff_function(
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_staff_function(cursor, staff_id, function_name, department_name)
+            rows = _get_staff_function(cursor, staff_id, function_name, department_name)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
-@tool(parse_docstring=True)
-def get_office_hour(staff_id: int, day_of_week: str | None = None) -> list[dict]:
+@tool(parse_docstring=True, response_format="content_and_artifact")
+def get_office_hour(staff_id: int, day_of_week: str | None = None) -> tuple[str, list[dict]]:
     """Look up weekly office hours (konsultacje) for one staff member.
 
     Call get_staff first to resolve staff_id, and if it returned more than
@@ -191,7 +201,8 @@ def get_office_hour(staff_id: int, day_of_week: str | None = None) -> list[dict]
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
-            return _get_office_hour(cursor, staff_id, day_of_week)
+            rows = _get_office_hour(cursor, staff_id, day_of_week)
+    return json.dumps(rows, ensure_ascii=False), rows
 
 
 TOOLS = [

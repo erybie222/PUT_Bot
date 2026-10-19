@@ -8,7 +8,7 @@ from database.queries.staff_functions import delete_staff_functions
 from database.connection import get_db_connection, close_pool
 
 def clean_db() -> None:
-    """Clean the database."""
+    """Delete every ingested row, leaving the schema and the Docker volume intact."""
     print("Cleaning database...")
     try:
         with get_db_connection() as connection:
