@@ -7,14 +7,13 @@ from database.queries.courses import upsert_course
 
 
 def parse_hours(hours_str: str) -> tuple[int, bool]:
-    """
-    Parse strings like ``'30h'``, ``'30h (E)'`` or empty values.
+    """Parse an hours cell like ``'30h (E)'``.
 
     Args:
-        hours_str: Raw hours string extracted from an ECTS table cell.
+        hours_str: Raw cell text.
 
     Returns:
-        tuple[int, bool]: Parsed hour count and exam marker flag.
+        tuple[int, bool]: Hours, and whether ``(E)`` marks an exam.
     """
     if not hours_str or hours_str.strip() == '':
         return 0, False
@@ -30,16 +29,12 @@ def parse_hours(hours_str: str) -> tuple[int, bool]:
 
 
 def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
-    """
-    Fetch the full ECTS catalog and upsert courses to the database.
+    """Scrape one major's ECTS catalog page and upsert its courses.
 
     Args:
-        cursor: Database cursor for executing queries.
-        url: URL of the ECTS catalog page for a selected major.
-        major_id: Resolved database identifier of the target major.
-
-    Returns:
-        None: This function performs network and database side effects.
+        cursor: DB cursor.
+        url: Catalog page URL.
+        major_id: FK to ``majors``.
     """
     print(f"Fetching full catalog from: {url}")
 

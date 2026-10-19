@@ -21,27 +21,23 @@ def upsert_course(
     form: str,
     source_url: str | None,
 ) -> None:
-    """
-    Insert or update a course row from the ECTS catalog.
+    """Upsert a course by its code.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        code: Unique course code used as a primary key.
-        major_id: Foreign key pointing to the ``majors`` table.
-        semester: Semester number in range 1..8.
-        name: Human-readable course name.
-        is_obligatory: Flag indicating obligatory vs elective status.
-        is_english: Flag indicating whether the course is taught in English.
-        ects: Number of ECTS points assigned to the course.
-        w: Number of lecture hours.
-        c: Number of exercise hours.
-        l: Number of laboratory hours.
-        p: Number of project hours.
-        form: Assessment type label (for example: exam/pass).
-        source_url: URL to course source document; can be None when unavailable.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
+        code: Course code (PK).
+        major_id: FK to ``majors``.
+        semester: Semester 1..8.
+        name: Course name.
+        is_obligatory: Obligatory vs elective.
+        is_english: Taught in English.
+        ects: ECTS points.
+        w: Lecture hours.
+        c: Classes hours.
+        l: Lab hours.
+        p: Project hours.
+        form: ``assessment_type`` ("Egzamin" / "Zaliczenie z ocena").
+        source_url: Course-card URL, or None.
     """
     cursor.execute("""
         INSERT INTO courses
@@ -73,22 +69,18 @@ def get_course(
     is_obligatory: bool | None = None,
     is_english: bool | None = None,
 ) -> list[dict]:
-    """
-    Look up courses for a major, optionally narrowed by name/semester/type.
+    """Courses of a major, optionally filtered.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        major_name: Major name, matched case-insensitively.
-        course_name: Optional case-insensitive substring filter on course name.
-        semester: Optional exact filter on semester (1..8).
-        is_obligatory: Optional exact filter on obligatory vs elective.
-        is_english: Optional exact filter on English-taught courses.
+        cursor: DB cursor.
+        major_name: Major name, case-insensitive.
+        course_name: Optional ILIKE substring.
+        semester: Optional semester filter.
+        is_obligatory: Optional obligatory/elective filter.
+        is_english: Optional English-taught filter.
 
     Returns:
-        list[dict]: Matching rows (course_code, name, semester, is_obligatory,
-            is_english, ects, hours_lecture, hours_classes, hours_lab,
-            hours_project, assessment_type, source_url, last_updated), empty
-            when nothing matches.
+        list[dict]: Matching rows; ``[]`` if none.
     """
     course_pattern = f"%{course_name}%" if course_name is not None else None
 
@@ -119,14 +111,10 @@ def get_course(
 
 
 def delete_courses(cursor: DBCursor) -> None:
-    """
-    Remove all courses.
+    """Delete every course.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         DELETE FROM courses;

@@ -14,20 +14,19 @@ def upsert_major(
     faculty: str,
     is_english: bool,
 ) -> int:
-    """
-    Create a new major record and return its ID.
+    """Upsert a major by (name, degree, study_mode).
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        major_name: Normalized major name (e.g. ``"informatyka"``).
-        degree: Degree of the major. (bachelor-of-engineering/masters)
-        study_mode: Study mode of the major. (full-time/part-time)
-        profile: Profile name of the major (general-academic / practical),
-        faculty: Symbol of the faculty for the major. (e.g. WIiT ),
-        is_english: Whether the major conducted in english.
+        cursor: DB cursor.
+        major_name: Major name, capitalised as stored.
+        degree: "bachelor-of-engineering" or "masters".
+        study_mode: "full-time" or "part-time".
+        profile: "general-academic" or "practical".
+        faculty: Faculty symbol, e.g. "WIiT".
+        is_english: English-taught.
 
     Returns:
-        int: The ID of the created or existing major.
+        int: The major's id.
     """
     cursor.execute("""
         INSERT INTO majors (name, degree, study_mode, profile, faculty, is_english)
@@ -43,17 +42,16 @@ def upsert_major(
 
 
 def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str) -> int | None:
-    """
-    Get a major's ID.
+    """Ingestion-only exact lookup of a major's id.
 
-   Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        major_name: Normalized major name (e.g. : ``"informatyka"``).
-        degree: Degree of the major. (bachelor-of-engineering/masters)
-        study_mode: Study mode of the major. (full-time/part-time)
+    Args:
+        cursor: DB cursor.
+        major_name: Major name, case-insensitive.
+        degree: Exact degree.
+        study_mode: Exact study mode.
 
     Returns:
-        int | None: The ID of the  major, or None when it does not exist.
+        int | None: The id, or None if missing.
     """
     cursor.execute("""
         SELECT id FROM majors
@@ -66,51 +64,41 @@ def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str
 
 def get_major(
     cursor: DBCursor,
-    major_name: str,
+    major_name: str | None = None,
     degree: str | None = None,
     study_mode: str | None = None,
 ) -> list[dict]:
-    """
-    Look up majors by (case-insensitive) name, optionally narrowed by degree/study mode.
-
-    Returns every matching row instead of guessing one: majors are unique by
-    (name, degree, study_mode), so a name-only lookup can legitimately return
-    more than one row and the caller must handle that (e.g. by asking the user
-    to disambiguate) rather than picking the first result.
+    """Majors by name, or every major when no name is given.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        major_name: Major name to look up, matched case-insensitively.
-        degree: Optional exact filter on degree (bachelor-of-engineering/masters).
-        study_mode: Optional exact filter on study mode (full-time/part-time).
+        cursor: DB cursor.
+        major_name: Major name, case-insensitive; None lists all.
+        degree: Optional degree filter.
+        study_mode: Optional study-mode filter.
 
     Returns:
-        list[dict]: Matching rows (id, name, degree, study_mode, profile,
-            faculty, is_english), empty when nothing matches.
+        list[dict]: All matches — a name can match several rows; the caller
+            must ask rather than pick one.
     """
     cursor.execute("""
         SELECT id, name, degree, study_mode, profile, faculty, is_english
         FROM majors
-        WHERE LOWER(name) = LOWER(%s)
+        WHERE (%s::text IS NULL OR LOWER(name) = LOWER(%s::text))
           AND (%s::text IS NULL OR degree = %s::text)
           AND (%s::text IS NULL OR study_mode = %s::text)
         ORDER BY name, degree, study_mode;
-    """, (major_name, degree, degree, study_mode, study_mode))
+    """, (major_name, major_name, degree, degree, study_mode, study_mode))
 
     columns = ("id", "name", "degree", "study_mode", "profile", "faculty", "is_english")
     return [row_to_dict(columns, row) for row in cursor.fetchall()]
 
 
 def delete_majors(cursor: DBCursor) -> None:
+    """Delete every major.
+
+    Args:
+        cursor: DB cursor.
     """
-        Remove all majors.
-
-        Args:
-            cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-        Returns:
-            None: This function performs database side effects only.
-        """
     cursor.execute("""
         DELETE FROM majors;
                    """)

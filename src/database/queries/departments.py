@@ -17,25 +17,19 @@ def upsert_department(
     email: str | None,
     source_url: str | None,
 ) -> None:
-    """
-    Insert or update a single organizational unit (institute/division/dean's office).
+    """Upsert a unit inside a faculty, keyed by its Polish name.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        name: Polish unit name, primary key (e.g. ``"Instytut Informatyki"``).
-        symbol: Unit symbol from the source (e.g. ``"II"``); NOT unique — divisions
-            share the symbol of their institute. Can be None when unavailable.
-        parent: Name of the parent unit within the same faculty, or None for units
-            directly under the faculty (institutes, dean's office).
-        unit_type: Unit type label from the source (e.g. ``"instytut"``, ``"zakład"``).
-        faculty: Symbol of the faculty the unit belongs to (e.g. ``"WIiT"``).
-        address: Postal address of the unit; can be None when unavailable.
-        phone: Office phone number(s); can be None when unavailable.
-        email: Office e-mail address; can be None when unavailable.
-        source_url: Source reference used for provenance tracking.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
+        name: Unit name (PK).
+        symbol: Source symbol; not unique (a zakład shares its institute's).
+        parent: Parent unit name; None directly under the faculty.
+        unit_type: e.g. "instytut", "zakład".
+        faculty: Faculty symbol, e.g. "WIiT".
+        address: Postal address, or None.
+        phone: Phone number(s), or None.
+        email: Office e-mail, or None.
+        source_url: Provenance URL.
     """
     cursor.execute("""
         INSERT INTO departments (name, symbol, parent, unit_type, faculty, address, phone, email, source_url)
@@ -55,23 +49,15 @@ def upsert_department(
 
 
 def get_department(cursor: DBCursor, name: str) -> dict | None:
-    """
-    Look up one organizational unit by (case-insensitive) name, including its
-    direct sub-units.
-
-    A ``None`` return means the unit doesn't exist; an empty ``children`` list
-    means it exists but has no sub-units in the current organizational tree —
-    these are different situations and callers must not conflate them.
+    """One unit plus its direct sub-units.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        name: Unit name to look up, matched case-insensitively.
+        cursor: DB cursor.
+        name: Unit name, case-insensitive.
 
     Returns:
-        dict | None: The unit's row (name, symbol, parent, unit_type, faculty,
-            address, phone, email, source_url, last_updated) plus a
-            ``children`` list of direct sub-unit names, or None when the unit
-            does not exist.
+        dict | None: Unit row with ``children``; None if no such unit.
+            ``children: []`` means it exists without sub-units — don't conflate.
     """
     cursor.execute("""
         SELECT name, symbol, parent, unit_type, faculty, address, phone, email,
@@ -97,14 +83,10 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
 
 
 def delete_departments(cursor: DBCursor) -> None:
-    """
-    Remove all departments.
+    """Delete every unit.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         DELETE FROM departments;

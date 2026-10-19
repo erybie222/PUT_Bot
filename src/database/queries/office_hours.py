@@ -6,18 +6,11 @@ from database.serialization import row_to_dict
 
 
 def delete_office_hours_by_id(cursor: DBCursor, staff_id: int) -> None:
-    """
-    Remove all office hours of one staff member.
-
-    Used before re-inserting the currently published set, so office hours
-    removed at the source disappear from the database as well.
+    """Delete one person's slots before re-inserting the published set.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: Foreign key pointing to the ``staff`` table.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
+        staff_id: FK to ``staff``.
     """
     cursor.execute("""
         DELETE FROM office_hours
@@ -35,20 +28,17 @@ def insert_office_hour(
     comment: str | None,
     source_url: str,
 ) -> None:
-    """
-    Insert a single weekly office-hours slot for a staff member.
+    """Insert one weekly slot.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: Foreign key pointing to the ``staff`` table.
-        day_of_week: Polish weekday name (e.g. ``"poniedziałek"``).
-        start_time: Slot start in ``HH:MM`` format.
-        end_time: Slot end in ``HH:MM`` format.
-        location: Building/room or ``"online"``; can be None when unavailable.
-        source_url: URL of the source business card used for provenance tracking.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
+        staff_id: FK to ``staff``.
+        day_of_week: Polish weekday name.
+        start_time: ``HH:MM``.
+        end_time: ``HH:MM``.
+        location: Room or "online", or None.
+        comment: Per-slot note, or None.
+        source_url: Card URL.
     """
     cursor.execute("""
         INSERT INTO office_hours
@@ -63,25 +53,15 @@ def get_office_hour(
     staff_id: int,
     day_of_week: str | None = None,
 ) -> list[dict]:
-    """
-    Look up weekly office-hours slots for one staff member.
-
-    An empty list means the person currently has no published slots — distinct
-    from the person not existing at all (that's an empty get_staff() result).
-    Callers must not conflate the two (see eval/gold_set.yaml
-    konsultacje-edge-brak-opublikowanych).
+    """Weekly slots of one person, Monday first.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: Foreign key pointing to the ``staff`` table (resolved
-            beforehand through get_staff).
-        day_of_week: Optional case-insensitive exact filter on Polish weekday
-            name (e.g. ``"poniedziałek"``).
+        cursor: DB cursor.
+        staff_id: Id from ``get_staff``.
+        day_of_week: Optional Polish weekday filter.
 
     Returns:
-        list[dict]: Matching rows (day_of_week, start_time, end_time, location,
-            comment, source_url, last_updated), ordered Monday..Sunday then by
-            start time; empty when nothing matches.
+        list[dict]: Slots; ``[]`` means none published, not "no such person".
     """
     cursor.execute("""
         SELECT day_of_week, start_time, end_time, location, comment,
@@ -109,14 +89,10 @@ def get_office_hour(
 
 
 def delete_office_hours(cursor: DBCursor) -> None:
-    """
-    Remove all office hours.
+    """Delete every slot.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         DELETE FROM office_hours;

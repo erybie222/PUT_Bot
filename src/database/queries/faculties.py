@@ -6,14 +6,10 @@ from database.serialization import row_to_dict
 
 
 def initialize_lookups(cursor: DBCursor) -> None:
-    """
-    Ensure base lookup records required by the project are present.
+    """Insert the WIiT faculty row (idempotent).
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         INSERT INTO faculties (symbol, name)
@@ -23,14 +19,13 @@ def initialize_lookups(cursor: DBCursor) -> None:
 
 
 def get_faculties(cursor: DBCursor) -> list[dict]:
-    """
-    List every faculty currently supported by the project.
+    """List every faculty, ordered by name.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
+        cursor: DB cursor.
 
     Returns:
-        list[dict]: All rows (symbol, name), ordered by name.
+        list[dict]: Rows ``(symbol, name)``.
     """
     cursor.execute("""
         SELECT symbol, name FROM faculties ORDER BY name;

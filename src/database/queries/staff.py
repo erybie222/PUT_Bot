@@ -17,25 +17,22 @@ def upsert_staff(
     phone: str | None,
     source_url: str,
 ) -> int:
-    """
-    Insert or update a staff member record and return its ID.
-
-    Identity is the (unique) university e-mail address.
+    """Upsert a staff member keyed by e-mail.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        first_name: Given name(s) of the staff member.
-        last_name: Family name of the staff member.
-        academic_title: Academic title prefix (e.g. ``"dr hab. inż."``); can be None.
-        position: Employment position/rank (e.g. ``"Profesor"``, ``"Adiunkt"``); can be None.
-        user_type: Informator user type (e.g. ``"employee_educational"``); can be None.
-        department: Name of the unit the member belongs to (FK to ``departments``); can be None.
-        email: University e-mail address, used as the natural key for upserts.
-        phone: Phone number(s); can be None when unavailable.
-        source_url: URL of the source business card used for provenance tracking.
+        cursor: DB cursor.
+        first_name: Given name.
+        last_name: Family name.
+        academic_title: e.g. "dr hab. inż.", or None.
+        position: Employment rank, e.g. "Profesor", or None.
+        user_type: Informator user type, or None.
+        department: FK to ``departments``, or None.
+        email: Upsert key.
+        phone: Phone number(s), or None.
+        source_url: Card URL.
 
     Returns:
-        int: The ID of the created or existing staff record.
+        int: The staff id.
     """
     cursor.execute("""
         INSERT INTO staff
@@ -63,25 +60,17 @@ def get_staff(
     first_name: str | None = None,
     department: str | None = None,
 ) -> list[dict]:
-    """
-    Look up staff members by (case-insensitive) last name, optionally narrowed
-    by first name and/or department.
-
-    Returns every match instead of guessing one: WIiT has staff sharing the
-    same first and last name , so callers must handle
-    more than one row (e.g. by asking the user to disambiguate by department
-    or title) rather than picking the first result.
+    """Staff by last name, optionally narrowed.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        last_name: Family name to look up, matched case-insensitively.
-        first_name: Optional case-insensitive exact filter on given name.
-        department: Optional case-insensitive exact filter on unit name.
+        cursor: DB cursor.
+        last_name: Case-insensitive.
+        first_name: Optional exact filter, case-insensitive.
+        department: Optional exact unit filter, case-insensitive.
 
     Returns:
-        list[dict]: Matching rows (id, first_name, last_name, academic_title,
-            position, user_type, department, email, phone, source_url), empty
-            when nothing matches.
+        list[dict]: All matches — WIiT has namesakes; the caller must ask
+            rather than pick one.
     """
     cursor.execute("""
         SELECT id, first_name, last_name, academic_title, position, user_type,
@@ -99,14 +88,10 @@ def get_staff(
 
 
 def delete_staff(cursor: DBCursor) -> None:
-    """
-    Remove all staff members.
+    """Delete every staff member.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         DELETE FROM staff;

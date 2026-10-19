@@ -12,24 +12,14 @@ def insert_staff_function(
     department_name: str | None,
     source_url: str,
 ) -> None:
-    """
-    Insert a single function (administrative role) held by a staff member.
-
-    A function is an appointed role (e.g. ``"Dyrektor instytutu"``) within a
-    unit — distinct from ``staff.position`` (employment rank) and from
-    ``staff.department`` (where the person works).
+    """Insert an appointed role (e.g. "Dyrektor instytutu").
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: Foreign key pointing to the ``staff`` table.
-        function_name: Role name (e.g. ``"Kierownik zakładu"``).
-        department_name: Unit the role is held in (e.g. ``"Instytut Informatyki"``);
-            stored as plain text — the role's unit may lie outside WIiT, so it is
-            not constrained by a foreign key. Can be None when unavailable.
-        source_url: URL of the source business card used for provenance tracking.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
+        staff_id: FK to ``staff``.
+        function_name: Role name.
+        department_name: Unit as plain text (may lie outside WIiT, so no FK), or None.
+        source_url: Card URL.
     """
     cursor.execute("""
         INSERT INTO staff_functions
@@ -45,25 +35,16 @@ def get_staff_function(
     function_name: str | None = None,
     department_name: str | None = None,
 ) -> list[dict]:
-    """
-    Look up administrative functions, joined with the holder's staff record.
-
-    Supports both directions of the lookup: "who holds function X in unit Y"
-    (via function_name / department_name) and "what functions does person Z
-    hold" (via staff_id, resolved beforehand through get_staff).
+    """Functions joined with their holder.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: Optional exact filter on the holder (FK to ``staff``).
-        function_name: Optional case-insensitive exact filter on function name
-            (e.g. ``"Dyrektor instytutu"``).
-        department_name: Optional case-insensitive exact filter on the unit the
-            function is held in.
+        cursor: DB cursor.
+        staff_id: Optional holder filter.
+        function_name: Optional exact filter, case-insensitive.
+        department_name: Optional exact unit filter, case-insensitive.
 
     Returns:
-        list[dict]: Matching rows (function_name, department_name, source_url,
-            last_updated, staff_id, first_name, last_name, academic_title,
-            position, email), empty when nothing matches.
+        list[dict]: Matching rows; ``[]`` if none.
     """
     cursor.execute("""
         SELECT sf.function_name, sf.department_name, sf.source_url, sf.last_updated,
@@ -86,14 +67,10 @@ def get_staff_function(
 
 
 def delete_staff_functions(cursor: DBCursor) -> None:
-    """
-    Remove all staff functions.
+    """Delete every staff function.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs database side effects only.
+        cursor: DB cursor.
     """
     cursor.execute("""
         DELETE FROM staff_functions;

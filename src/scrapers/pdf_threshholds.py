@@ -15,15 +15,14 @@ YEAR_COLUMNS = {
 }
 
 def clean_number(value: str | None, output_type: Callable[[str], int | float]) -> int | float | None:
-    """
-    Normalize Polish decimal strings and cast them to the target numeric type.
+    """Cast a Polish-decimal cell (``"612,50"``) to a number.
 
     Args:
-        value: Raw number string from PDF table cell.
-        output_type: Callable used for final cast (for example: ``int`` or ``float``).
+        value: Raw cell text.
+        output_type: ``int`` or ``float``.
 
     Returns:
-        int | float | None: Parsed numeric value or None for empty/missing input.
+        int | float | None: The number; None for empty or ``-``.
     """
     if not value or value.strip() in ('', '-'):
         return None
@@ -32,18 +31,11 @@ def clean_number(value: str | None, output_type: Callable[[str], int | float]) -
     return output_type(clean_value)
 
 def process_pdf(cursor: DBCursor, file_path: str) -> None:
-    """
-    Parse admission thresholds from PDF and upsert them into PostgreSQL.
-
-    Runs on the caller's cursor/transaction — the caller decides when to commit.
-    Requires the majors to already exist (they are matched by name via ``get_major_id``).
+    """Upsert thresholds from the PDF table; majors must already exist (matched by name).
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        file_path: Path to the source PDF file with thresholds table.
-
-    Returns:
-        None: This function performs file I/O and database side effects.
+        cursor: DB cursor.
+        file_path: Path to the thresholds PDF.
     """
     print(f"Starting PDF extraction process...")
 

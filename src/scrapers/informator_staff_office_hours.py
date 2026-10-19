@@ -1,3 +1,5 @@
+"""WIiT units, staff and office hours from the Informator PP JSON API."""
+
 import os
 import time
 from typing import Iterator
@@ -33,17 +35,13 @@ class InformatorSessionError(RuntimeError):
 
 
 def create_session() -> Session:
-    """
-    Build an HTTP session authorized against the Informator API.
-
-    Args:
-        None.
+    """HTTP session carrying the captcha-verified ``informator`` cookie.
 
     Returns:
-        Session: Session carrying the captcha-verified ``informator`` cookie.
+        Session: Authorised session.
 
     Raises:
-        InformatorSessionError: Raised when INFORMATOR_SESSION is not configured.
+        InformatorSessionError: INFORMATOR_SESSION unset.
     """
     cookie = os.getenv("INFORMATOR_SESSION", "").strip()
     if not cookie:
@@ -56,24 +54,21 @@ def create_session() -> Session:
 
 
 def api_call(session: Session, action: str, post: bool = True) -> dict:
-    """
-    Call one Informator JSON API action and return its ``result`` payload.
+    """Call one ``?do=`` action and return its ``result``.
+
+    Network errors and non-JSON bodies are retried with backoff.
 
     Args:
-        session: HTTP session created by ``create_session``.
-        action: Query string after ``?do=`` (action name plus URL parameters).
-        post: Whether the action expects POST ; GET otherwise.
-
-    Transient failures (network errors, empty/HTML bodies from server hiccups
-    or rate limiting) are retried up to ``MAX_RETRIES`` times with a backoff.
+        session: From ``create_session``.
+        action: Query string after ``?do=``.
+        post: POST if True, else GET.
 
     Returns:
-        dict: The ``result`` object of a successful API response.
+        dict: The response's ``result``.
 
     Raises:
-        InformatorSessionError: Raised when the session is redirected to login
-            or fails the captcha verification.
-        RuntimeError: Raised for a non-SUCCESS API status or when retries run out.
+        InformatorSessionError: Login redirect or unverified captcha.
+        RuntimeError: Non-SUCCESS status, or retries exhausted.
     """
     url = f"{BASE_URL}/?do={action}"
     last_error = ""
@@ -109,15 +104,14 @@ def api_call(session: Session, action: str, post: bool = True) -> dict:
 
 
 def find_unit_by_symbol(node: dict, symbol: str) -> dict | None:
-    """
-    Find a unit subtree by its symbol in the organization tree.
+    """Find a unit subtree by symbol.
 
     Args:
-        node: Organization tree node (as returned by OrganizationUnitsTree).
-        symbol: Unit symbol to look for (e.g. ``"WIiT"``).
+        node: Tree node to search from.
+        symbol: e.g. "WIiT".
 
     Returns:
-        dict | None: Matching subtree root, or None when not found.
+        dict | None: Matching subtree, or None.
     """
     if node.get("symbol") == symbol:
         return node
@@ -129,15 +123,14 @@ def find_unit_by_symbol(node: dict, symbol: str) -> dict | None:
 
 
 def iter_units(node: dict, depth: int = 0) -> Iterator[tuple[dict, int]]:
-    """
-    Yield all units of a subtree in pre-order (parents before children).
+    """Walk a subtree, parents before children.
 
     Args:
-        node: Subtree root node.
-        depth: Depth of ``node`` relative to the subtree root.
+        node: Subtree root.
+        depth: Depth of ``node``.
 
     Returns:
-        Iterator[tuple[dict, int]]: Pairs of (unit node, relative depth).
+        Iterator[tuple[dict, int]]: ``(node, depth)`` pairs.
     """
     yield node, depth
     for child in node.get("children") or []:
@@ -145,15 +138,14 @@ def iter_units(node: dict, depth: int = 0) -> Iterator[tuple[dict, int]]:
 
 
 def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
-    """
-    Yield all employee items of a unit (including sub-units), page by page.
+    """Every employee of a unit and its sub-units, page by page.
 
     Args:
-        session: HTTP session created by ``create_session``.
-        unit_id: ID of the unit .
+        session: From ``create_session``.
+        unit_id: Informator unit id.
 
     Returns:
-        Iterator[dict]: Raw employee card items from the unit listing.
+        Iterator[dict]: Raw employee items.
     """
     page = 1
     while True:
@@ -172,20 +164,17 @@ def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
 def pick_primary_position(
     positions: dict, unit_names_by_id: dict[int, tuple[str, int]]
 ) -> tuple[str | None, str | None]:
-    """
-    Choose a person's primary (unit, position name) from their positions.
+    """Pick the position held in the deepest WIiT unit.
 
-    A person can hold several positions. The one in the deepest unit of the
-    faculty tree is chosen, so the unit and the position name stay consistent
-    (both come from the same position).
+    Unit and position come from the same entry, so they stay consistent.
 
     Args:
-        positions: ``employment.data.positions`` mapping from the card payload.
-        unit_names_by_id: Mapping of unit ID to (Polish name, tree depth).
+        positions: ``employment.data.positions`` from the card.
+        unit_names_by_id: Unit id -> (name, depth).
 
     Returns:
-        tuple[str | None, str | None]: ``(unit name, position name)``; either
-        element is None when no position is within a known WIiT unit.
+        tuple[str | None, str | None]: ``(unit, position)``; None when no
+            position sits in a known WIiT unit.
     """
     best_name = None
     best_position = None
@@ -200,14 +189,13 @@ def pick_primary_position(
 
 
 def build_location(meeting: dict) -> str | None:
-    """
-    Compose a human-readable location string for one office-hours slot.
+    """Location string for one slot.
 
     Args:
-        meeting: Single meeting entry from the card's ``meetings`` module.
+        meeting: One entry of the ``meetings`` module.
 
     Returns:
-        str | None: ``"<building> <room>"``, ``"online"`` or None when unknown.
+        str | None: ``"<building> <room>"``, ``"online"`` or None.
     """
     parts = [meeting.get("building_symbol"), meeting.get("room_number")]
     location = " ".join(part for part in parts if part)
@@ -217,21 +205,17 @@ def build_location(meeting: dict) -> str | None:
 
 
 def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid: str, source_url: str) -> int:
-    """
-    Fetch one person's business card and sync their weekly office hours.
-
-    Existing rows are replaced with the currently published set, so slots
-    removed at the source are removed here too.
+    """Replace one person's weekly slots with the currently published set.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        session: HTTP session created by ``create_session``.
-        staff_id: ID of the staff record the office hours belong to.
-        uuid: Informator card UUID of the person.
-        source_url: Card URL used for provenance tracking.
+        cursor: DB cursor.
+        session: From ``create_session``.
+        staff_id: FK to ``staff``.
+        uuid: Informator card uuid.
+        source_url: Card URL.
 
     Returns:
-        int: Number of office-hours slots stored.
+        int: Slots stored.
     """
     result = api_call(session, f"Card.CardShow&uuid={uuid}", True)
     modules = result["card"]["modules"]
@@ -259,22 +243,16 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
 
 
 def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url: str) -> int:
-    """
-    Store the administrative functions held by one staff member.
-
-    A function (e.g. ``"Dyrektor instytutu"``) is distinct from the person's
-    position and department. Rows are inserted only — stale functions are not
-    pruned, as the pipeline is re-run against a freshly created database.
+    """Insert one person's administrative functions (insert-only, see CLAUDE.md).
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-        staff_id: ID of the staff record the functions belong to.
-        functions: ``employment.data.functions`` mapping from the card payload
-            (keyed by UUID; can be an explicit ``null``).
-        source_url: Card URL used for provenance tracking.
+        cursor: DB cursor.
+        staff_id: FK to ``staff``.
+        functions: ``employment.data.functions`` from the card; may be null.
+        source_url: Card URL.
 
     Returns:
-        int: Number of functions stored.
+        int: Functions stored.
     """
     stored = 0
     for function in (functions or {}).values():
@@ -295,21 +273,13 @@ def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url
 
 
 def process_informator(cursor: DBCursor) -> None:
-    """
-    Scrape all WIiT units, staff and office hours into PostgreSQL.
-
-    Runs on the caller's cursor/transaction — the caller decides when to commit
-    (in the pipeline that is ``main.py``, once at the end of the whole run).
-    Requires the WIiT row in ``faculties`` to exist (``initialize_lookups``).
+    """Scrape WIiT units, staff, functions and office hours on the caller's cursor.
 
     Args:
-        cursor: Open PostgreSQL cursor used to execute SQL statements.
-
-    Returns:
-        None: This function performs network and database side effects.
+        cursor: DB cursor.
 
     Raises:
-        InformatorSessionError: Raised when INFORMATOR_SESSION is missing or rejected.
+        InformatorSessionError: Session missing or rejected.
     """
     print("Starting Informator PP staff scraper...")
     session = create_session()
@@ -349,8 +319,7 @@ def process_informator(cursor: DBCursor) -> None:
         contact = (item["modules"].get("contact", {}) or {}).get("data", {}) or {}
         employment = (item["modules"].get("employment", {}) or {}).get("data", {}) or {}
 
-        email = (contact.get("email", "") or ""
-                                             "").strip().lower()
+        email = (contact.get("email", "") or "").strip().lower()
         first_name = (basic.get("name", "") or "").strip()
         last_name = (basic.get("surname", "") or "").strip()
         if not (email and first_name and last_name):
