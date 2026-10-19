@@ -1,7 +1,13 @@
-# Evaluation gold set for the future structured (function-calling) QA path. Every
+# Evaluation gold set for the structured (function-calling) QA path. Every
 # expected_answer/expected_data value is manually verified against `source` — per the
 # project's "zero invented numbers" rule.
 #
+# `expected_calls` is the ground truth for layer 1 of eval/run_eval.py; see its
+# docstring for how the four axes score. Two rules when editing it:
+#   - list only the calls a correct answer *requires*: tool_selection tests
+#     containment, so a stricter expectation fails agents that took a valid route;
+#   - "$prev.id" resolves at run time from the single row of the preceding call,
+#     because staff ids change on every re-ingestion.
 
 meta:
   last_verified: "2026-09-12"
@@ -22,6 +28,9 @@ progi_punktowe:
     expected_data: {min_points: 759.00, capacity: 210}
     expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
     source: *progi
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Informatyka", year: 2025}
 
   - id: prog-bioinformatyka-2021
     question: "Jaki był próg na Bioinformatykę w 2021 roku?"
@@ -30,6 +39,9 @@ progi_punktowe:
     expected_answer: "525,50 pkt, limit przyjęć: 60 miejsc."
     notes: "Limit przyjęć zmieniał się między latami (70 w 2022, 60 w 2021) — dobry test, że bot nie zakłada stałego limitu."
     source: *progi
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Bioinformatyka", year: 2021}
 
   - id: prog-cyberbezpieczenstwo-2025
     question: "Jaki był próg na Cyberbezpieczeństwo w 2025 roku?"
@@ -38,6 +50,9 @@ progi_punktowe:
     expected_answer: "807,50 pkt, limit przyjęć: 90 miejsc."
     notes: "Nowy kierunek — 2025 to jedyny rok z danymi w źródle."
     source: *progi
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Cyberbezpieczeństwo", year: 2025}
 
   - id: prog-edge-cyberbezpieczenstwo-brak-danych
     question: "Jaki był próg na Cyberbezpieczeństwo w 2022 roku?"
@@ -46,6 +61,10 @@ progi_punktowe:
     expected_answer: "Nie wiem — kierunek Cyberbezpieczeństwo nie istniał / nie ma danych o progu za 2022 rok w źródle."
     edge_case: "rok bez danych (kierunek za młody), nie wolno ekstrapolować"
     source: *progi
+    # expected_calls note: Must query and get nothing back — refusing without checking is the failure this catches.
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Cyberbezpieczeństwo", year: 2022}
 
   - id: prog-edge-kierunek-poza-zakresem
     question: "Jaki był próg na Automatykę i robotykę w 2025 roku?"
@@ -53,8 +72,12 @@ progi_punktowe:
     expected_data: null
     expected_answer: "Nie wiem — Automatyka i robotyka nie jest kierunkiem WIiT obsługiwanym przez ten projekt."
     edge_case: "kierunek istnieje w źródle PDF, ale poza zakresem WIiT tego projektu"
-    notes: "Dane w PDF istnieją, ale kierunek nie jest w WIIT_MAJORS_* i nigdy nie trafia do bazy."
     source: *progi
+    # expected_calls review: Debatable — get_admission_threshold is an equally honest route that also returns
+    #   nothing. If runs fail here on route rather than behaviour, widen the expectation.
+    expected_calls:
+      - tool: get_major
+        args: {major_name: "Automatyka i robotyka"}
 
   - id: prog-edge-rok-w-przyszlosci
     question: "Jaki będzie próg na Informatykę w 2030 roku?"
@@ -63,6 +86,11 @@ progi_punktowe:
     expected_answer: "Nie wiem — progi na przyszłe lata nie są znane, tylko historyczne dane z rekrutacji."
     edge_case: "rok spoza zakresu danych źródłowych"
     source: *progi
+    # expected_calls review: Debatable — declining a future year is defensible reasoning, not invention. Listed
+    #   anyway because thresholds are stored per year, so the database can answer it.
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Informatyka", year: 2030}
 
   - id: prog-edge-tryb-niestacjonarny
     question: "Jaki był próg na Informatykę niestacjonarną w 2024 roku?"
@@ -70,8 +98,10 @@ progi_punktowe:
     expected_data: null
     expected_answer: "Nie wiem — projekt zbiera dziś tylko studia stacjonarne pierwszego stopnia."
     edge_case: "tryb studiów spoza obecnego zakresu ingestii"
-    notes: "Patrz project_plan.md TODO: tryby niestacjonarne nie są jeszcze ingestowane."
     source: *progi
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Informatyka", year: 2024, study_mode: "part-time"}
 
 # ---------------------------------------------------------------------------
 # Category 2 — plany_studiow (study plans / ECTS courses)
@@ -83,6 +113,9 @@ plany_studiow:
     expected_data: {semester: 1, ects: 2, is_obligatory: true, hours_lecture: 16, hours_classes: 16, assessment_type: "Zaliczenie z ocena"}
     expected_answer: "Semestr 1, przedmiot obowiązkowy, 2 ECTS (16h wykładu, 16h ćwiczeń), zaliczenie na ocenę (bez egzaminu)."
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Algebra liniowa"}
 
   - id: przedmiot-anam-egzamin
     question: "Czy 'Analiza matematyczna' na Informatyce kończy się egzaminem i ile ma ECTS?"
@@ -91,6 +124,9 @@ plany_studiow:
     expected_answer: "Tak, egzamin. Semestr 1, obowiązkowy, 6 ECTS (30h wykładu, 30h ćwiczeń)."
     notes: "assessment_type w bazie to dosłownie string 'Egzamin' wykryty po markerze (E) w komórce godzin wykładowych."
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Analiza matematyczna"}
 
   - id: przedmiot-sop-semestr2
     question: "Ile ECTS ma 'Systemy operacyjne' na Informatyce i czy to egzamin?"
@@ -98,6 +134,9 @@ plany_studiow:
     expected_data: {semester: 2, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
     expected_answer: "5 ECTS, semestr 2, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Systemy operacyjne"}
 
   - id: przedmiot-python-obieralny
     question: "Czy 'Podstawy programowania - Python' jest obowiązkowe na pierwszym semestrze Informatyki?"
@@ -105,6 +144,9 @@ plany_studiow:
     expected_data: {semester: 1, ects: 4, is_obligatory: false, hours_lecture: 24, hours_lab: 30}
     expected_answer: "Nie, to przedmiot obieralny (do wyboru) w grupie wprowadzającej do programowania, 4 ECTS."
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Python", semester: 1}
 
   - id: przedmiot-suma-ects-semestr1-obowiazkowe
     question: "Ile punktów ECTS łącznie mają obowiązkowe przedmioty w semestrze 1 na Informatyce?"
@@ -113,8 +155,11 @@ plany_studiow:
       courses: {ALIN: 2, ANAM: 6, JANG: 2, LOG: 3, MATD: 6, NINF: 3, BHP: 0, BIBL: 0}
       total_ects: 22
     expected_answer: "22 ECTS (Algebra liniowa 2 + Analiza matematyczna 6 + Język angielski 2 + Logika obliczeniowa 3 + Matematyka dyskretna 6 + Narzędzia informatyki 3 + BHP 0 + Usługi biblioteczne 0)."
-    notes: "Dobry test dla przyszłego narzędzia get_courses(...) — wymaga agregacji (SUM), nie tylko listy wierszy."
+    notes: "Wymaga agregacji (SUM), nie samej listy wierszy — patrz CLAUDE.md backlog #11."
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", semester: 1, is_obligatory: true}
 
   - id: przedmiot-edge-nieistniejacy
     question: "Ile ECTS ma przedmiot 'Głębokie sieci neuronowe' na pierwszym semestrze Informatyki?"
@@ -123,6 +168,9 @@ plany_studiow:
     expected_answer: "Nie wiem — nie ma takiego przedmiotu w planie studiów Informatyki na semestrze 1."
     edge_case: "nieistniejący przedmiot — bot nie może zgadywać ani podstawiać podobnej nazwy"
     source: *przedmioty
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Głębokie sieci neuronowe", semester: 1}
 
   - id: przedmiot-wdp-cyberbezpieczenstwo-egzamin
     question: "Ile ECTS ma 'Wprowadzenie do programowania' na Cyberbezpieczeństwie i czy to egzamin?"
@@ -130,6 +178,9 @@ plany_studiow:
     expected_data: {semester: 1, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
     expected_answer: "5 ECTS, semestr 1, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
     source: *przedmioty_cyber
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Cyberbezpieczeństwo", course_name: "Wprowadzenie do programowania"}
 
   - id: przedmiot-wdc-cyberbezpieczenstwo-projekt
     question: "Ile godzin projektu ma 'Wstęp do cyberbezpieczeństwa' i ile to ECTS?"
@@ -138,6 +189,9 @@ plany_studiow:
     expected_answer: "30h projektu, 4 ECTS, semestr 1, obowiązkowy, bez egzaminu (zaliczenie na ocenę)."
     notes: "Przykład kursu z niezerowymi hours_project — pozostałe przykłady w tym pliku mają P=0."
     source: *przedmioty_cyber
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Cyberbezpieczeństwo", course_name: "Wstęp do cyberbezpieczeństwa"}
 
   - id: przedmiot-edge-ta-sama-nazwa-inny-kierunek
     question: "Ile ECTS ma 'Algebra liniowa' — na Cyberbezpieczeństwie i na Informatyce?"
@@ -148,6 +202,12 @@ plany_studiow:
     expected_answer: "To dwa różne przedmioty mimo tej samej nazwy: na Cyberbezpieczeństwie 5 ECTS z egzaminem (30h/30h), na Informatyce 2 ECTS bez egzaminu (16h/16h)."
     edge_case: "ten sam `name`, różny `course_code` i różna treść w zależności od kierunku — test na to, że bot dopytuje/rozróżnia po kierunku, a nie dopasowuje tylko po nazwie przedmiotu"
     source: *przedmioty_cyber
+    # expected_calls note: The answer needs both majors, so stopping at one call is a genuine miss.
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Cyberbezpieczeństwo", course_name: "Algebra liniowa"}
+      - tool: get_course
+        args: {major_name: "Informatyka", course_name: "Algebra liniowa"}
 
 # ---------------------------------------------------------------------------
 # Category 3 — kierunki (majors)
@@ -160,6 +220,10 @@ kierunki:
     expected_answer: "Informatyka, Bioinformatyka, Teleinformatyka, Cyberbezpieczeństwo, Mikroelektronika i komunikacja cyfrowa, Sztuczna inteligencja (ta ostatnia ma też tor anglojęzyczny: Artificial Intelligence)."
     notes: "To lista tego, co faktycznie jest w WIIT_MAJORS_*, nie pełna oferta WIiT — dobry test, żeby bot nie 'dopowiadał' kierunków spoza swojego zakresu."
     source: *kierunki
+    # expected_calls note: get_major with no arguments is the only way to enumerate majors.
+    expected_calls:
+      - tool: get_major
+        args: {}
 
   - id: kierunek-ai-jezyk
     question: "Czy Sztuczna inteligencja jest kierunkiem anglojęzycznym?"
@@ -167,6 +231,9 @@ kierunki:
     expected_data: {is_english: true, degree: "bachelor-of-engineering", study_mode: "full-time"}
     expected_answer: "Tak — to jedyny w pełni anglojęzyczny (is_english=true) kierunek I stopnia w tym projekcie."
     source: *kierunki
+    expected_calls:
+      - tool: get_major
+        args: {major_name: "Sztuczna inteligencja"}
 
   - id: kierunek-tryb-teleinformatyka
     question: "Jaki tryb studiów jest ingestowany dla Teleinformatyki — stacjonarny czy niestacjonarny?"
@@ -174,6 +241,9 @@ kierunki:
     expected_data: {study_mode: "full-time"}
     expected_answer: "Stacjonarny (`full-time`) — to jedyny tryb, jaki ten projekt dziś zbiera, dla wszystkich kierunków."
     source: *kierunki
+    expected_calls:
+      - tool: get_major
+        args: {major_name: "Teleinformatyka"}
 
   - id: kierunek-edge-poza-zakresem
     question: "Czy WIiT prowadzi kierunek 'Informatyka i ekonometria'?"
@@ -181,8 +251,10 @@ kierunki:
     expected_data: null
     expected_answer: "Nie wiem — taki kierunek nie jest w bazie tego projektu."
     edge_case: "nieistniejący/nieobsługiwany kierunek — bot nie może potwierdzić czegoś, czego nie ingestuje"
-    notes: "Nie ma go w WIIT_MAJORS_PL_FIRST_CYCLE/WIIT_MAJORS_EN_FIRST_CYCLE."
     source: *kierunki
+    expected_calls:
+      - tool: get_major
+        args: {major_name: "Informatyka i ekonometria"}
 
 # ---------------------------------------------------------------------------
 # Category 4 — kadra_i_jednostki (staff, staff_functions, departments)
@@ -195,6 +267,9 @@ kadra_i_jednostki:
       children: ["Europejskie Centrum Bioinformatyki i Genomiki", "Zakład Badań Operacyjnych i Sztucznej Inteligencji", "Zakład Inteligentnych Systemów Wspomagania Decyzji", "Zakład Inżynierii Oprogramowania", "Zakład Systemów Informatycznych", "Zakład Technologii Przetwarzania Danych", "Zakład Teorii Algorytmów i Systemów Programowania", "Zakład Uczenia Maszynowego"]
     expected_answer: "7 zakładów (Badań Operacyjnych i SI, Inteligentnych Systemów Wspomagania Decyzji, Inżynierii Oprogramowania, Systemów Informatycznych, Technologii Przetwarzania Danych, Teorii Algorytmów i Systemów Programowania, Uczenia Maszynowego) + Europejskie Centrum Bioinformatyki i Genomiki."
     source: *informator
+    expected_calls:
+      - tool: get_department
+        args: {name: "Instytut Informatyki"}
 
   - id: dept-jednostka-nadrzedna
     question: "Jaka jest jednostka nadrzędna (parent) dla Zakładu Uczenia Maszynowego?"
@@ -202,14 +277,19 @@ kadra_i_jednostki:
     expected_data: {parent: "Instytut Informatyki"}
     expected_answer: "Instytut Informatyki."
     source: *informator
+    expected_calls:
+      - tool: get_department
+        args: {name: "Zakład Uczenia Maszynowego"}
 
   - id: dept-parent-null-instytut
     question: "Czy Instytut Radiokomunikacji ma jednostkę nadrzędną inną niż sam Wydział?"
     entities: {jednostka: "Instytut Radiokomunikacji"}
     expected_data: {parent: null}
     expected_answer: "Nie — leży bezpośrednio pod WIiT, tak jak wszystkie instytuty i dziekanat WIiT."
-    notes: "W bazie to parent = NULL w tabeli departments."
     source: *informator
+    expected_calls:
+      - tool: get_department
+        args: {name: "Instytut Radiokomunikacji"}
 
   - id: dept-edge-brak-podjednostek
     question: "Jakie zakłady wchodzą w skład Instytutu Radiokomunikacji?"
@@ -218,6 +298,9 @@ kadra_i_jednostki:
     expected_answer: "Żadne — według aktualnego drzewa organizacyjnego Informatora Instytut Radiokomunikacji nie ma podległych zakładów w WIiT (w przeciwieństwie do Instytutu Informatyki)."
     edge_case: "pusta lista podjednostek — nie mylić z brakiem danych"
     source: *informator
+    expected_calls:
+      - tool: get_department
+        args: {name: "Instytut Radiokomunikacji"}
 
   - id: staff-dyrektor-instytutu
     question: "Kto jest dyrektorem Instytutu Radiokomunikacji?"
@@ -226,6 +309,9 @@ kadra_i_jednostki:
     expected_answer: "prof. dr hab. inż. Hanna Bogucka."
     notes: "staff_functions ('Dyrektor instytutu') jest odrębne od staff.position ('Profesor') — dobry test, że bot nie miesza tych dwóch pól."
     source: *informator
+    expected_calls:
+      - tool: get_staff_function
+        args: {function_name: "Dyrektor instytutu", department_name: "Instytut Radiokomunikacji"}
 
   - id: staff-administracyjny-dziekanat
     question: "Jakie stanowisko ma mgr Beata Banaszak i w jakiej jednostce pracuje?"
@@ -233,6 +319,9 @@ kadra_i_jednostki:
     expected_data: {position: "Specjalista ds. dydaktyki", department: "Dziekanat Wydziału Informatyki i Telekomunikacji", user_type: "employee_administrative"}
     expected_answer: "Specjalista ds. dydaktyki, Dziekanat Wydziału Informatyki i Telekomunikacji — pracownik administracyjny, nie dydaktyczny."
     source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Banaszak", first_name: "Beata"}
 
   - id: staff-edge-nieistniejacy
     question: "Na jakim stanowisku pracuje prof. Zenobiusz Nieistniejący z WIiT?"
@@ -241,6 +330,9 @@ kadra_i_jednostki:
     expected_answer: "Nie wiem — nie ma takiej osoby w bazie danych WIiT."
     edge_case: "nieistniejąca osoba — bot nie może zmyślić stanowiska/jednostki"
     source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Nieistniejący"}
 
 # ---------------------------------------------------------------------------
 # Category 5 — konsultacje (office hours)
@@ -252,14 +344,24 @@ konsultacje:
     expected_data: {day_of_week: "poniedziałek", start_time: "09:45", end_time: "13:15", location: "A23 CW17", comment: "najlepiej po umówieniu mailowym"}
     expected_answer: "Poniedziałek 09:45–13:15, sala A23 CW17 (komentarz: najlepiej po umówieniu mailowym)."
     source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Andrzejewski", first_name: "Witold"}
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
 
   - id: konsultacje-wojciechowski-marek-wtorek
     question: "Czy dr hab. inż. Marek Wojciechowski (Zakład Technologii Przetwarzania Danych) ma konsultacje we wtorek, i o której?"
     entities: {imie: "Marek", nazwisko: "Wojciechowski", jednostka: "Zakład Technologii Przetwarzania Danych"}
     expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
     expected_answer: "Tak, wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
-    notes: "Pytanie celowo zamknięte (o konkretną, zweryfikowaną osobę) — NIE 'kto z zakładu ma konsultacje we wtorek', bo tego z próbki ~25/271 osób nie da się rzetelnie potwierdzić jako kompletnej listy."
+    notes: "Celowo zamknięte: listy 'kto z zakładu ma konsultacje' nie da się potwierdzić z próbki ~25/271 osób."
     source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Wojciechowski", first_name: "Marek"}
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
 
   - id: konsultacje-edge-brak-opublikowanych
     question: "O której konsultacje ma prof. dr hab. inż. Hanna Bogucka?"
@@ -268,6 +370,12 @@ konsultacje:
     expected_answer: "Ta osoba obecnie nie ma opublikowanego harmonogramu konsultacji w Informatorze."
     edge_case: "osoba istnieje w bazie, ale bez zapisanych office_hours — to NIE to samo co 'osoba nie istnieje', bot nie powinien tych dwóch przypadków mylić"
     source: *informator
+    # expected_calls note: The call must happen and come back empty — that is the only way to tell "no published hours" from "no such person".
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Bogucka", first_name: "Hanna"}
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
 
   - id: konsultacje-edge-niejednoznaczne-imie-i-nazwisko
     question: "Kiedy konsultacje ma dr Paweł Wojciechowski?"
@@ -282,6 +390,10 @@ konsultacje:
       adiunkt). Musi dopytać o jednostkę/tytuł, zanim poda godziny.
     edge_case: "realna niejednoznaczność w danych WIiT — to samo imię I nazwisko, nie tylko nazwisko (project_plan.md, sekcja 8)"
     source: *informator
+    # expected_calls note: Stops at get_staff on purpose — calling get_office_hour means picking one of two people, which scores as overcalling.
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Wojciechowski", first_name: "Paweł"}
 
   - id: konsultacje-edge-nieistniejaca-osoba
     question: "Kiedy konsultacje ma prof. Zenobiusz Nieistniejący z WIiT?"
@@ -290,3 +402,146 @@ konsultacje:
     expected_answer: "Nie wiem — nie ma takiej osoby w bazie danych WIiT."
     edge_case: "nieistniejąca osoba — bot nie może zmyślić grafiku"
     source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Nieistniejący"}
+
+# ---------------------------------------------------------------------------
+# Category 6 — poza_zakresem (questions no tool can answer)
+#
+# `expected_calls: []` is what exercises the no_call axis; these cases are its
+# core, and a few more live in other categories. Each baits a different tool, and
+# none carries a `source`: the right refusal follows from the system's own scope,
+# not from a document. Keep this category off the faculty/major axis — get_faculties and
+# get_major exist to let the agent check its scope, and
+# prog-edge-kierunek-poza-zakresem expects that.
+# ---------------------------------------------------------------------------
+poza_zakresem:
+  - id: poza-zakresem-zapisy-na-obieralne
+    question: "Jak zapisać się na przedmiot obieralny w systemie uczelni i do kiedy trwają zapisy?"
+    expected_data: null
+    expected_answer: "Nie obsługuję tego — zapisy na przedmioty i terminy zapisów są poza zakresem bota (progi punktowe, plany studiów, kadra i jednostki, konsultacje). Żadnej procedury ani żadnej daty podawać nie wolno."
+    edge_case: "pytanie, na które nie odpowiada ŻADNE narzędzie — poprawna reakcja to odmowa BEZ odpytywania bazy"
+    notes: "Przynęta: fraza 'przedmiot obieralny' pasuje do get_course, ale żadne narzędzie nie zna procedury ani terminów zapisów."
+    # expected_calls note: Empty and strict — SYSTEM_PROMPT's "Sprawdzaj, zanim zaprzeczysz" exempts this class of question from checking.
+    expected_calls: []
+
+  - id: poza-zakresem-regulamin-warunkowy-wpis
+    question: "Ile dni mam na złożenie podania o warunkowy wpis na kolejny semestr i ile razy można powtarzać ten sam przedmiot?"
+    expected_data: null
+    expected_answer: "Nie obsługuję tego — regulamin studiów (terminy podań, zasady warunkowego wpisu i powtarzania przedmiotów) jest poza zakresem bota. Żadnej liczby dni ani liczby powtórzeń podawać nie wolno."
+    edge_case: "regulamin studiów — pytanie wprost o LICZBY, których nie zna żadne narzędzie"
+    notes: "Pytanie prosi o dwie liczby, których baza nie ma — tu nie kusi żadne narzędzie, tylko wiedza pretrenowana."
+    expected_calls: []
+
+  - id: poza-zakresem-logowanie-reset-hasla
+    question: "Nie mogę zalogować się do systemu eStudent — gdzie zgłosić reset hasła i pod jaki numer zadzwonić?"
+    expected_data: null
+    expected_answer: "Nie obsługuję tego — logowanie do systemów uczelni i zgłoszenia informatyczne są poza zakresem bota. Żadnego numeru telefonu ani adresu podawać nie wolno."
+    edge_case: "logowanie do systemów uczelni + prośba o numer telefonu, który bot MOŻE pobrać z bazy, ale nie dla tej sprawy"
+    notes: "Najgroźniejsza przynęta: departments ma telefony jednostek, więc get_department zwróci prawdziwy numer — tylko nie do tej sprawy. Faithfulness tego nie złapie (numer JEST w danych), łapie no_call/overcalling."
+    expected_calls: []
+
+# ---------------------------------------------------------------------------
+# Category 7 — pytania_po_angielsku (English questions)
+#
+# Polish is the norm for this bot and for its sources, so the rest of this file
+# stays Polish on purpose: an eval translated wholesale would measure a system
+# nobody deploys. These cases exist because run_ingestion.py carries
+# WIIT_MAJORS_EN_FIRST_CYCLE — students on an English-taught major really will
+# ask in English, and nothing else here measures that.
+#
+# Two things are under test at once: the usual lookup, and the rule that the
+# answer mirrors the question's language while values quoted from the database
+# stay as stored.
+# ---------------------------------------------------------------------------
+pytania_po_angielsku:
+  - id: en-kierunki-anglojezyczne
+    question: "Which majors at WIiT are taught in English?"
+    expected_data: {name: "Sztuczna inteligencja", is_english: true}
+    expected_answer: "Sztuczna inteligencja — the only major with is_english=true. Answer in English, keeping the Polish name as stored."
+    notes: "Baza NIE zna nazwy 'Artificial Intelligence' — w majors jest tylko nazwa polska (run_ingestion.py:74), wiec poprawna odpowiedz nie moze jej podac."
+    source: *kierunki
+    expected_calls:
+      - tool: get_major
+        args: {}
+
+  - id: en-przedmiot-ects-po-angielsku
+    question: "How many ECTS is 'Wprowadzenie do programowania' on Cyberbezpieczenstwo, and does it end with an exam?"
+    expected_data: {semester: 1, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
+    expected_answer: "5 ECTS, semester 1, obligatory, ends with an exam, 30h of lectures and 30h of laboratory. English answer; the course name and the assessment_type value stay Polish."
+    notes: "Te same dane co przedmiot-wdp-cyberbezpieczenstwo-egzamin, inna mierzona rzecz: jezyk odpowiedzi. Nazwa kierunku bez polskich znakow, bo tak realnie pisza uzytkownicy."
+    source: *przedmioty_cyber
+    expected_calls:
+      - tool: get_course
+        args: {major_name: "Cyberbezpieczeństwo", course_name: "Wprowadzenie do programowania"}
+
+  - id: en-konsultacje-po-angielsku
+    question: "When and where does dr inz. Witold Andrzejewski hold his office hours?"
+    expected_data: {day_of_week: "poniedziałek", start_time: "09:45", end_time: "13:15", location: "A23 CW17", comment: "najlepiej po umówieniu mailowym"}
+    expected_answer: "Monday 09:45-13:15, room A23 CW17, with the published note 'najlepiej po umówieniu mailowym'. English answer; the weekday may be rendered as Monday, the room code and the comment stay as stored."
+    source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {last_name: "Andrzejewski", first_name: "Witold"}
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
+
+  - id: en-edge-angielska-nazwa-kierunku
+    question: "What are the first-semester courses on Artificial Intelligence?"
+    expected_data: null
+    expected_answer: null
+    expected_behavior: >
+      The agent must NOT conclude the major does not exist. No row is stored
+      under "Artificial Intelligence": run_ingestion.py upserts the Polish name
+      and uses the English one only to build the ECTS catalog URL, and
+      get_course joins on LOWER(m.name). The honest route is to try, get
+      nothing, enumerate with get_major(), match the user's English wording to
+      the stored major, and retry with that name — or ask the user if it cannot
+      be matched with confidence. Answer in English.
+    edge_case: "kierunek istnieje, ale pod inna nazwa niz podana przez uzytkownika — angielskiej nazwy nie ma w bazie"
+    notes: >
+      Luka jest w danych: angielskiej nazwy nie ma w majors, wiec jedynym
+      mostem miedzy pytaniem a baza jest lista z get_major() plus wnioskowanie
+      modelu. Zmierzone 2026-10-01: agent przechodzi ten przypadek — pomija
+      skazana na pustke probe z angielska nazwa i od razu enumeruje, wiec
+      wywolanie get_course("Artificial Intelligence") jest dozwolone, ale nie
+      wymagane. Naprawa po stronie danych (trzymac angielska nazwe i dopuscic
+      ja w get_major/get_course) usunelaby to zgadywanie. Mapowania nazw
+      celowo NIE ma w SYSTEM_PROMPT — prompt z odpowiedzia uniewaznia pomiar.
+    expected_calls:
+      - tool: get_major
+        args: {}
+      - tool: get_course
+        args: {major_name: "Sztuczna inteligencja", semester: 1}
+
+  - id: en-poza-zakresem-erasmus
+    question: "I am an Erasmus student — how do I register for the semester and get my learning agreement signed?"
+    expected_data: null
+    expected_answer: "Refusal in English: the bot covers admission thresholds, study plans, staff and units, and office hours at WIiT — not enrolment or Erasmus paperwork. No procedure, no office, no date."
+    edge_case: "pytanie poza zakresem zadane po angielsku — odmowa BEZ odpytywania bazy, w jezyku pytania"
+    notes: "Mierzy dwie rzeczy naraz: no_call oraz to, ze odmowa trafia w jezyk pytania. Tresc rozna od przykladu P5 w SYSTEM_PROMPT (tam: stypendium socjalne)."
+    expected_calls: []
+
+# ---------------------------------------------------------------------------
+# Category 8 — powitanie_i_zakres (questions about the bot itself)
+#
+# Not an out-of-scope question — the bot answers this one. It is the only case
+# about WIiTek rather than about WIiT, so nothing in the database can answer it
+# and the correct reaction is a short self-introduction with no tool call
+# (SYSTEM_PROMPT, example P8). The bait is get_faculties, whose own docstring
+# tells the agent to check the system's scope before answering; that pull
+# already produced a stray call on en-poza-zakresem-erasmus, so this case
+# watches the same reflex from the other side.
+#
+# case_kind() reports this as "refusal" because it has no expected_data — the
+# label is cosmetic, the scoring is no_call plus both judges.
+# ---------------------------------------------------------------------------
+powitanie_i_zakres:
+  - id: powitanie-kim-jestes
+    question: "Cześć, co potrafisz?"
+    expected_data: null
+    expected_answer: "Przedstawia się jako WIiTek i w jednym krótkim akapicie podaje zakres: progi punktowe, plany studiów (przedmioty i ECTS), kadra i jednostki, konsultacje. Bez sekcji źródła, bez rozpisanej listy funkcji, bez zmyślonych możliwości (np. planu zajęć czy stypendiów)."
+    edge_case: "pytanie o samego bota — jedyny przypadek, w którym poprawna odpowiedź nie pochodzi z bazy"
+    notes: "Mierzy reguly tonu z SYSTEM_PROMPT (P8): autoprezentacja, zwiezlosc, zero wywolan. Zmyslenie zakresu jest tu realnym ryzykiem — obietnica planu zajec to dla uzytkownika gorsze niz odmowa."
+    expected_calls: []
