@@ -1,15 +1,18 @@
-"""SQL helpers for the faculties table."""
+"""SQL for the ``faculties`` table: the faculties the system has data for (today only WIiT)."""
 
 from psycopg import Cursor as DBCursor
 
 from database.serialization import row_to_dict
 
 
-def initialize_lookups(cursor: DBCursor) -> None:
-    """Insert the WIiT faculty row (idempotent).
+def insert_wiit_faculty(cursor: DBCursor) -> None:
+    """Insert the WIiT faculty row; does nothing if it already exists.
+
+    Majors and units refer to the faculty by its symbol, so this must run
+    before anything else is ingested.
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         INSERT INTO faculties (symbol, name)
@@ -19,13 +22,15 @@ def initialize_lookups(cursor: DBCursor) -> None:
 
 
 def get_faculties(cursor: DBCursor) -> list[dict]:
-    """List every faculty, ordered by name.
+    """List every faculty in the database, ordered by name.
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
 
     Returns:
-        list[dict]: Rows ``(symbol, name)``.
+        list[dict]: One dict per faculty:
+            ``symbol`` (str) — short code, e.g. "WIiT".
+            ``name`` (str) — full Polish name.
     """
     cursor.execute("""
         SELECT symbol, name FROM faculties ORDER BY name;

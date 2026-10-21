@@ -1,3 +1,12 @@
+"""Scraper for the admission thresholds PDF published by the university.
+
+The PDF has one table on its first page: one row per major, and for each of
+the last five recruitment years two columns — number of places and minimum
+points. Only the first recruitment round is listed.
+
+Majors are matched to the database by name, so they must be ingested first.
+"""
+
 import pdfplumber
 from typing import Callable
 from psycopg import Cursor as DBCursor
@@ -5,7 +14,8 @@ from database.queries.majors import get_major_id
 from database.queries.admission_thresholds import upsert_threshold
 
 
-# Column definitions for specific years
+# Year -> (capacity column, min-points column) in the PDF table. Column 0 is the
+# major name. Update when a new PDF shifts the year range.
 YEAR_COLUMNS = {
     2025: (1, 2),
     2024: (3, 4),
@@ -14,15 +24,15 @@ YEAR_COLUMNS = {
     2021: (9, 10)
 }
 
-def clean_number(value: str | None, output_type: Callable[[str], int | float]) -> int | float | None:
-    """Cast a Polish-decimal cell (``"612,50"``) to a number.
+def parse_polish_number(value: str | None, output_type: Callable[[str], int | float]) -> int | float | None:
+    """Convert a number written the Polish way (comma as decimal point) to a Python number.
 
     Args:
-        value: Raw cell text.
-        output_type: ``int`` or ``float``.
+        value: Cell text, e.g. ``"612,50"``.
+        output_type: ``int`` or ``float`` — what to convert to.
 
     Returns:
-        int | float | None: The number; None for empty or ``-``.
+        int | float | None: The number, or None if the cell is empty or "-".
     """
     if not value or value.strip() in ('', '-'):
         return None
@@ -30,11 +40,13 @@ def clean_number(value: str | None, output_type: Callable[[str], int | float]) -
     clean_value = value.replace(',', '.').strip()
     return output_type(clean_value)
 
-def process_pdf(cursor: DBCursor, file_path: str) -> None:
-    """Upsert thresholds from the PDF table; majors must already exist (matched by name).
+def ingest_thresholds_pdf(cursor: DBCursor, file_path: str) -> None:
+    """Read the thresholds table from the PDF and store every major's thresholds.
+
+    A major in the PDF that is not in the database is reported and skipped.
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
         file_path: Path to the thresholds PDF.
     """
     print(f"Starting PDF extraction process...")
@@ -60,9 +72,10 @@ def process_pdf(cursor: DBCursor, file_path: str) -> None:
                 capacity_str = row[idx_capacity]
                 points_str = row[idx_points]
 
-                capacity = clean_number(capacity_str, int)
-                points = clean_number(points_str, float)
+                capacity = parse_polish_number(capacity_str, int)
+                points = parse_polish_number(points_str, float)
 
+                # Empty or "-" cell: no threshold published for that year.
                 if capacity is None or points is None:
                     continue
 

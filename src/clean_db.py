@@ -1,3 +1,9 @@
+"""Delete all loaded data so ingestion can start from an empty database.
+
+Run with ``uv run src/clean_db.py``. Tables are kept, only their rows are
+deleted — faster than wiping the Docker volume with ``down -v``.
+"""
+
 from database.queries.majors import delete_majors
 from database.queries.staff import delete_staff
 from database.queries.departments import delete_departments
@@ -8,12 +14,17 @@ from database.queries.staff_functions import delete_staff_functions
 from database.connection import get_db_connection, close_pool
 
 def clean_db() -> None:
-    """Delete every ingested row, leaving the schema and the Docker volume intact."""
+    """Delete every row from every table in one transaction.
+
+    If anything fails, the error is printed and nothing is deleted.
+    """
     print("Cleaning database...")
     try:
         with get_db_connection() as connection:
                 print("Connected to database.")
                 cursor = connection.cursor()
+                # Children before parents, so no row is deleted while a
+                # foreign key still points at it.
                 delete_office_hours(cursor)
                 delete_staff_functions(cursor)
                 delete_staff(cursor)

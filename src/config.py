@@ -1,4 +1,8 @@
-"""Application configuration loaded from environment variables."""
+"""Settings for the database and the two language models, read from ``.env``.
+
+``.env.example`` lists every variable and explains which model settings go
+together. Each settings class reads the environment when it is created.
+"""
 
 import os
 from dataclasses import dataclass, field
@@ -7,38 +11,41 @@ from dotenv import load_dotenv
 
 
 _ROOT_PATH = Path(__file__).resolve().parent.parent
+# override=True: values in .env win over variables already set in the shell.
 load_dotenv(_ROOT_PATH / ".env", override=True)
 
-# Checked at startup so a typo fails here, not as an API error mid eval run.
+# Allowed values of OPENAI_REASONING_EFFORT / JUDGE_REASONING_EFFORT. Checked at
+# startup so a typo fails immediately, not as an API error halfway through a run.
 REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh", "max")
 
 
 def _optional(name: str) -> str | None:
-    """Read an env var, with blank meaning unset.
+    """Read an environment variable, treating an empty value as "not set".
 
-    An empty model parameter is an API error, not a default, so blank must
-    mean "omit".
+    This matters for model settings: sending an empty temperature to the API
+    is an error, so a blank line in ``.env`` must mean "don't send it".
 
     Args:
-        name: Env var name.
+        name: Variable name.
 
     Returns:
-        str | None: Stripped value, or None if unset/blank.
+        str | None: The value without surrounding spaces, or None if the
+        variable is missing or blank.
     """
     return os.getenv(name, "").strip() or None
 
 
 def _optional_float(name: str) -> float | None:
-    """Read an optional numeric env var.
+    """Read an optional numeric environment variable, e.g. a temperature.
 
     Args:
-        name: Env var name.
+        name: Variable name.
 
     Returns:
-        float | None: Parsed value, or None if unset/blank.
+        float | None: The number, or None if the variable is missing or blank.
 
     Raises:
-        ValueError: Set but not a number.
+        ValueError: The variable is set but is not a number.
     """
     value = _optional(name)
     if value is None:
@@ -50,16 +57,17 @@ def _optional_float(name: str) -> float | None:
 
 
 def _reasoning_effort(name: str) -> str | None:
-    """Read a reasoning_effort env var.
+    """Read a reasoning-effort environment variable and check its value.
 
     Args:
-        name: Env var name.
+        name: Variable name.
 
     Returns:
-        str | None: A value from ``REASONING_EFFORTS``, or None.
+        str | None: One of ``REASONING_EFFORTS``, or None if the variable is
+        missing or blank.
 
     Raises:
-        ValueError: Set to an unsupported value.
+        ValueError: The value is not one of ``REASONING_EFFORTS``.
     """
     value = _optional(name)
     if value is not None and value not in REASONING_EFFORTS:
@@ -72,7 +80,7 @@ def _reasoning_effort(name: str) -> str | None:
 
 @dataclass
 class DatabaseSettings:
-    """PostgreSQL connection settings."""
+    """Where and as whom to connect to PostgreSQL (DB_* variables in ``.env``)."""
 
     dbname: str = field(default_factory=lambda: os.getenv("DB_NAME", ""))
     user: str = field(default_factory=lambda: os.getenv("DB_USER", ""))
@@ -81,10 +89,11 @@ class DatabaseSettings:
     port: int = field(default_factory=lambda: int(os.getenv("DB_PORT", 5432)))
 
     def to_dict(self) -> dict[str, str | int]:
-        """Connection kwargs for the psycopg pool.
+        """Return the settings in the form the psycopg connection pool expects.
 
         Returns:
-            dict[str, str | int]: ``dbname``, ``user``, ``password``, ``host``, ``port``.
+            dict[str, str | int]: ``dbname``, ``user``, ``password``, ``host``
+            and ``port``, ready to pass as connection arguments.
         """
         return {
             "dbname": self.dbname,
@@ -95,11 +104,13 @@ class DatabaseSettings:
         }
 
 @dataclass
-class LLMSettings:
-    """Agent model settings. Which parameter fits which model family: ``.env.example``.
+class AgentSettings:
+    """Settings of the model that answers questions (OPENAI_* variables in ``.env``).
 
-    ``reasoning_effort`` falls back to ``"none"``: Chat Completions allows
-    function calling on reasoning models only at that level.
+    A model accepts either a temperature or a reasoning effort, never both;
+    ``.env.example`` explains which. If the reasoning effort is left blank it
+    becomes ``"none"``, because OpenAI allows tool calling on reasoning models
+    only at that level — and the agent cannot work without tools.
     """
 
     api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
@@ -112,13 +123,16 @@ class LLMSettings:
     )
 
     def require_api_key(self) -> str:
-        """Return the key, or raise now instead of as an opaque SDK auth error.
+        """Return the OpenAI API key, or fail with a clear message if it is missing.
+
+        Without this check a missing key would only surface later, as a
+        harder-to-read authentication error from the OpenAI library.
 
         Returns:
             str: The OpenAI API key.
 
         Raises:
-            RuntimeError: OPENAI_API_KEY unset or empty.
+            RuntimeError: OPENAI_API_KEY is missing or empty.
         """
         if not self.api_key:
             raise RuntimeError(
@@ -129,10 +143,11 @@ class LLMSettings:
 
 @dataclass
 class JudgeSettings:
-    """Judge model settings, separate so the judge can differ from the agent's model.
+    """Settings of the model that scores answers during evaluation (JUDGE_* in ``.env``).
 
-    Unlike ``LLMSettings``, ``reasoning_effort`` has no forced fallback: the
-    judge uses structured output, not function calling.
+    Kept separate from ``AgentSettings`` so the judge can be a different model.
+    Unlike the agent, a blank reasoning effort stays blank (the model's own
+    default is used): the judge does not call tools, so it has no such limit.
     """
 
     api_key: str = field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
@@ -145,13 +160,16 @@ class JudgeSettings:
     )
 
     def require_api_key(self) -> str:
-        """Return the key, or raise now instead of as an opaque SDK auth error.
+        """Return the OpenAI API key, or fail with a clear message if it is missing.
+
+        Without this check a missing key would only surface later, as a
+        harder-to-read authentication error from the OpenAI library.
 
         Returns:
             str: The OpenAI API key.
 
         Raises:
-            RuntimeError: OPENAI_API_KEY unset or empty.
+            RuntimeError: OPENAI_API_KEY is missing or empty.
         """
         if not self.api_key:
             raise RuntimeError(

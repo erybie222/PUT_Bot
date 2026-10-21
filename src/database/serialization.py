@@ -1,7 +1,9 @@
-"""psycopg rows → JSON-safe dicts.
+"""Turning database rows into dictionaries that can be converted to JSON.
 
-``Decimal``, ``datetime`` and ``time`` don't survive ``json.dumps``, which tool
-output has to on its way to the model.
+Tool results are sent to the model as JSON, but some values the database
+returns — ``Decimal`` (e.g. threshold points), ``datetime`` and ``time``
+(e.g. office hours) — cannot be written as JSON directly. Every query
+builds its result rows with ``row_to_dict`` so this never fails.
 """
 
 from datetime import datetime, time
@@ -10,13 +12,15 @@ from typing import Any
 
 
 def _to_json_safe(value: Any) -> Any:
-    """Convert one psycopg value to a JSON-serializable one.
+    """Convert one value from the database into one that JSON can store.
 
     Args:
-        value: Raw column value.
+        value: A column value as the database returned it.
 
     Returns:
-        Any: ``float`` for Decimal, ISO string for datetime/time, else unchanged.
+        Any: A ``float`` for a ``Decimal``, an ISO-format string such as
+        ``"09:45:00"`` for a ``datetime`` or ``time``, and any other value
+        unchanged.
     """
     if isinstance(value, Decimal):
         return float(value)
@@ -26,13 +30,13 @@ def _to_json_safe(value: Any) -> Any:
 
 
 def row_to_dict(columns: tuple[str, ...], row: tuple) -> dict:
-    """Zip column names with a row into a JSON-safe dict.
+    """Turn one database row into a dictionary keyed by column name.
 
     Args:
-        columns: Column names in SELECT order.
-        row: One fetched row.
+        columns: Column names, in the same order as in the SELECT.
+        row: One row as returned by the database.
 
     Returns:
-        dict: Column -> JSON-safe value.
+        dict: Column name → value, with every value safe to convert to JSON.
     """
     return {column: _to_json_safe(value) for column, value in zip(columns, row)}

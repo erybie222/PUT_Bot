@@ -1,4 +1,4 @@
-"""SQL helpers for the courses table."""
+"""SQL for the ``courses`` table: courses in each major's study plan, from the ECTS catalogs."""
 
 from psycopg import Cursor as DBCursor
 
@@ -14,30 +14,30 @@ def upsert_course(
     is_obligatory: bool,
     is_english: bool,
     ects: int,
-    w: int,
-    c: int,
-    l: int,
-    p: int,
-    form: str,
+    hours_lecture: int,
+    hours_classes: int,
+    hours_lab: int,
+    hours_project: int,
+    assessment_type: str,
     source_url: str | None,
 ) -> None:
-    """Upsert a course by its code.
+    """Insert a course, or update it if a course with this code is already stored.
 
     Args:
-        cursor: DB cursor.
-        code: Course code (PK).
-        major_id: FK to ``majors``.
-        semester: Semester 1..8.
+        cursor: Database cursor to run the SQL on.
+        code: Course code from the catalog; it identifies the course.
+        major_id: Id of the major whose study plan the course belongs to.
+        semester: Semester number, 1 to 8.
         name: Course name.
-        is_obligatory: Obligatory vs elective.
-        is_english: Taught in English.
+        is_obligatory: True for an obligatory course, False for an elective.
+        is_english: True if taught in English.
         ects: ECTS points.
-        w: Lecture hours.
-        c: Classes hours.
-        l: Lab hours.
-        p: Project hours.
-        form: ``assessment_type`` ("Egzamin" / "Zaliczenie z ocena").
-        source_url: Course-card URL, or None.
+        hours_lecture: Lecture hours (W).
+        hours_classes: Classes hours (C).
+        hours_lab: Lab hours (L).
+        hours_project: Project hours (P).
+        assessment_type: "Egzamin" (exam) or "Zaliczenie z ocena" (graded credit).
+        source_url: Link to the course card PDF, or None if the catalog has none.
     """
     cursor.execute("""
         INSERT INTO courses
@@ -58,7 +58,8 @@ def upsert_course(
             assessment_type = EXCLUDED.assessment_type,
             source_url = EXCLUDED.source_url,
             last_updated = CURRENT_TIMESTAMP;
-    """, (code, major_id, semester, name, is_obligatory, is_english, ects, w, c, l, p, form, source_url))
+    """, (code, major_id, semester, name, is_obligatory, is_english, ects,
+          hours_lecture, hours_classes, hours_lab, hours_project, assessment_type, source_url))
 
 
 def get_course(
@@ -69,21 +70,38 @@ def get_course(
     is_obligatory: bool | None = None,
     is_english: bool | None = None,
 ) -> list[dict]:
-    """Courses of a major, optionally filtered.
+    """Find the courses of one major, optionally narrowed down.
 
     Args:
-        cursor: DB cursor.
-        major_name: Major name, case-insensitive.
-        course_name: Optional ILIKE substring.
-        semester: Optional semester filter.
-        is_obligatory: Optional obligatory/elective filter.
-        is_english: Optional English-taught filter.
+        cursor: Database cursor to run the SQL on.
+        major_name: Major name; letter case is ignored.
+        course_name: Only courses whose name contains this text (case is
+            ignored); None for all.
+        semester: Only this semester; None for all.
+        is_obligatory: True for obligatory only, False for electives only,
+            None for both.
+        is_english: True for English-taught only, False for Polish only,
+            None for both.
 
     Returns:
-        list[dict]: Matching rows; ``[]`` if none.
+        list[dict]: Matching courses ordered by semester and name; empty if
+        none match. Sums such as total ECTS are left to the caller. Each dict:
+            ``course_code`` (str) — catalog code.
+            ``name`` (str) — course name.
+            ``semester`` (int) — semester number.
+            ``is_obligatory`` / ``is_english`` (bool) — as in the arguments.
+            ``ects`` (int) — ECTS points.
+            ``hours_lecture`` / ``hours_classes`` / ``hours_lab`` /
+                ``hours_project`` (int) — hours per semester of each form.
+            ``assessment_type`` (str) — "Egzamin" or "Zaliczenie z ocena".
+            ``source_url`` (str | None) — course card link.
+            ``last_updated`` (str) — when the row was last written (ISO date-time).
     """
+    # Substring match, so "Analiza" also finds "Analiza matematyczna 1".
     course_pattern = f"%{course_name}%" if course_name is not None else None
 
+    # Optional filters: each value is passed twice — once for the IS NULL
+    # check (None = no filter), once for the comparison.
     cursor.execute("""
         SELECT c.course_code, c.name, c.semester, c.is_obligatory, c.is_english,
                c.ects, c.hours_lecture, c.hours_classes, c.hours_lab, c.hours_project,
@@ -111,10 +129,10 @@ def get_course(
 
 
 def delete_courses(cursor: DBCursor) -> None:
-    """Delete every course.
+    """Delete every course (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM courses;

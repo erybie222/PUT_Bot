@@ -1,16 +1,19 @@
-"""SQL helpers for the office_hours table."""
+"""SQL for the ``office_hours`` table: weekly office hours (konsultacje) of staff members."""
 
 from psycopg import Cursor as DBCursor
 
 from database.serialization import row_to_dict
 
 
-def delete_office_hours_by_id(cursor: DBCursor, staff_id: int) -> None:
-    """Delete one person's slots before re-inserting the published set.
+def delete_office_hours_of_staff(cursor: DBCursor, staff_id: int) -> None:
+    """Delete all of one person's office hours.
+
+    Ingestion calls this before inserting the person's current hours, so the
+    database always holds exactly what Informator shows now.
 
     Args:
-        cursor: DB cursor.
-        staff_id: FK to ``staff``.
+        cursor: Database cursor to run the SQL on.
+        staff_id: Id of the person.
     """
     cursor.execute("""
         DELETE FROM office_hours
@@ -28,18 +31,19 @@ def insert_office_hour(
     comment: str | None,
     source_url: str,
 ) -> None:
-    """Insert one weekly slot.
+    """Store one weekly office-hours slot of one person.
 
     Args:
-        cursor: DB cursor.
-        staff_id: FK to ``staff``.
-        day_of_week: Polish weekday name.
-        start_time: ``HH:MM``.
-        end_time: ``HH:MM``.
-        location: Room or "online", or None.
-        comment: Per-slot note, or None.
-        source_url: Card URL.
+        cursor: Database cursor to run the SQL on.
+        staff_id: Id of the person.
+        day_of_week: Polish weekday name in lower case, e.g. "poniedziałek".
+        start_time: Start time as ``HH:MM``.
+        end_time: End time as ``HH:MM``.
+        location: Building and room, "online", or None if not given.
+        comment: Note attached to this slot (e.g. "only by appointment"), or None.
+        source_url: Link to the person's Informator card.
     """
+    # Two slots on the same day starting at the same time: keep the first.
     cursor.execute("""
         INSERT INTO office_hours
         (staff_id, day_of_week, start_time, end_time, location, comment ,source_url)
@@ -53,16 +57,26 @@ def get_office_hour(
     staff_id: int,
     day_of_week: str | None = None,
 ) -> list[dict]:
-    """Weekly slots of one person, Monday first.
+    """Find one person's weekly office hours, Monday first.
 
     Args:
-        cursor: DB cursor.
-        staff_id: Id from ``get_staff``.
-        day_of_week: Optional Polish weekday filter.
+        cursor: Database cursor to run the SQL on.
+        staff_id: The person's id, from ``get_staff``.
+        day_of_week: Only this Polish weekday (case ignored); None for all days.
 
     Returns:
-        list[dict]: Slots; ``[]`` means none published, not "no such person".
+        list[dict]: The person's slots ordered by day and start time. Empty
+        means the person has published no office hours — not that the person
+        does not exist. Each dict:
+            ``day_of_week`` (str) — Polish weekday.
+            ``start_time`` / ``end_time`` (str) — e.g. "09:45:00".
+            ``location`` (str | None) — room or "online".
+            ``comment`` (str | None) — note for this slot.
+            ``source_url`` (str) — Informator card.
+            ``last_updated`` (str) — when the row was last written (ISO date-time).
     """
+    # Weekday names would sort alphabetically, so the CASE orders them
+    # Monday → Sunday instead.
     cursor.execute("""
         SELECT day_of_week, start_time, end_time, location, comment,
                source_url, last_updated
@@ -89,10 +103,10 @@ def get_office_hour(
 
 
 def delete_office_hours(cursor: DBCursor) -> None:
-    """Delete every slot.
+    """Delete every office-hours slot (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM office_hours;

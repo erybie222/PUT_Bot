@@ -1,4 +1,4 @@
-"""SQL helpers for the staff table."""
+"""SQL for the ``staff`` table: faculty employees, from Informator."""
 
 from psycopg import Cursor as DBCursor
 
@@ -17,23 +17,28 @@ def upsert_staff(
     phone: str | None,
     source_url: str,
 ) -> int:
-    """Upsert a staff member keyed by e-mail.
+    """Insert a staff member, or update them if someone with this e-mail is already stored.
+
+    The e-mail identifies a person, because names are not unique.
 
     Args:
-        cursor: DB cursor.
-        first_name: Given name.
-        last_name: Family name.
-        academic_title: e.g. "dr hab. inż.", or None.
-        position: Employment rank, e.g. "Profesor", or None.
-        user_type: Informator user type, or None.
-        department: FK to ``departments``, or None.
-        email: Upsert key.
-        phone: Phone number(s), or None.
-        source_url: Card URL.
+        cursor: Database cursor to run the SQL on.
+        first_name: First name.
+        last_name: Last name.
+        academic_title: Academic title, e.g. "dr hab. inż.", or None.
+        position: Job title, e.g. "Profesor uczelni", or None.
+        user_type: Kind of employee as Informator labels it, or None.
+        department: Name of the unit the person works in (must be stored in
+            ``departments``), or None.
+        email: E-mail address; identifies the person.
+        phone: Phone number(s), comma-separated, or None.
+        source_url: Link to the person's Informator card.
 
     Returns:
-        int: The staff id.
+        int: The person's id, needed to attach their office hours and functions.
     """
+    # On conflict RETURNING gives the id of the existing row, so the id is
+    # stable across re-runs for the same e-mail.
     cursor.execute("""
         INSERT INTO staff
         (first_name, last_name, academic_title, position, user_type, department, email, phone, source_url)
@@ -60,18 +65,31 @@ def get_staff(
     first_name: str | None = None,
     department: str | None = None,
 ) -> list[dict]:
-    """Staff by last name, optionally narrowed.
+    """Find staff members by last name, optionally narrowed by first name or unit.
 
     Args:
-        cursor: DB cursor.
-        last_name: Case-insensitive.
-        first_name: Optional exact filter, case-insensitive.
-        department: Optional exact unit filter, case-insensitive.
+        cursor: Database cursor to run the SQL on.
+        last_name: Last name; letter case is ignored.
+        first_name: Only people with exactly this first name (case ignored);
+            None for any.
+        department: Only people in exactly this unit (case ignored); None
+            for any.
 
     Returns:
-        list[dict]: All matches — WIiT has namesakes; the caller must ask
-            rather than pick one.
+        list[dict]: Every match. WIiT has different people with the same
+        name, so several rows are possible; the caller must then ask which
+        person is meant instead of picking one. Each dict:
+            ``id`` (int) — pass this to the office-hours and functions lookups.
+            ``first_name`` / ``last_name`` (str) — name.
+            ``academic_title`` / ``position`` / ``user_type`` (str | None) —
+                as described in ``upsert_staff``.
+            ``department`` (str | None) — unit the person works in.
+            ``email`` (str) — e-mail address.
+            ``phone`` (str | None) — phone number(s).
+            ``source_url`` (str) — Informator card.
     """
+    # Optional filters: each value is passed twice — once for the IS NULL
+    # check (None = no filter), once for the comparison.
     cursor.execute("""
         SELECT id, first_name, last_name, academic_title, position, user_type,
                department, email, phone, source_url
@@ -88,10 +106,10 @@ def get_staff(
 
 
 def delete_staff(cursor: DBCursor) -> None:
-    """Delete every staff member.
+    """Delete every staff member (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM staff;

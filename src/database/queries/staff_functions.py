@@ -1,4 +1,9 @@
-"""SQL helpers for the staff_functions table."""
+"""SQL for the ``staff_functions`` table: administrative roles held by staff.
+
+A function is a role such as "Dyrektor instytutu" or "Prodziekan". It is
+separate from a person's job title (``staff.position``) and from the unit
+they work in (``staff.department``).
+"""
 
 from psycopg import Cursor as DBCursor
 
@@ -12,15 +17,22 @@ def insert_staff_function(
     department_name: str | None,
     source_url: str,
 ) -> None:
-    """Insert an appointed role (e.g. "Dyrektor instytutu").
+    """Store one function held by one person; does nothing if it is already stored.
+
+    Functions are only ever added, never updated or removed, so ingestion is
+    meant to run on an emptied database (see ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
-        staff_id: FK to ``staff``.
-        function_name: Role name.
-        department_name: Unit as plain text (may lie outside WIiT, so no FK), or None.
-        source_url: Card URL.
+        cursor: Database cursor to run the SQL on.
+        staff_id: Id of the person.
+        function_name: Name of the role, e.g. "Dyrektor instytutu".
+        department_name: Unit the role is in, as plain text, or None. Not
+            linked to ``departments`` because it may be outside WIiT.
+        source_url: Link to the person's Informator card.
     """
+    # DO NOTHING keeps re-runs from duplicating a known function. Caveat:
+    # Postgres treats NULLs as distinct in UNIQUE, so a function with no
+    # department_name is inserted again on every run.
     cursor.execute("""
         INSERT INTO staff_functions
         (staff_id, function_name, department_name, source_url)
@@ -35,17 +47,28 @@ def get_staff_function(
     function_name: str | None = None,
     department_name: str | None = None,
 ) -> list[dict]:
-    """Functions joined with their holder.
+    """Find administrative functions together with the people who hold them.
 
     Args:
-        cursor: DB cursor.
-        staff_id: Optional holder filter.
-        function_name: Optional exact filter, case-insensitive.
-        department_name: Optional exact unit filter, case-insensitive.
+        cursor: Database cursor to run the SQL on.
+        staff_id: Only this person's functions; None for everyone.
+        function_name: Only this exact function (case ignored); None for all.
+        department_name: Only functions in this exact unit (case ignored);
+            None for all.
 
     Returns:
-        list[dict]: Matching rows; ``[]`` if none.
+        list[dict]: Matching functions ordered by the holder's name; empty if
+        none. Each dict:
+            ``function_name`` (str) — the role.
+            ``department_name`` (str | None) — unit the role is in.
+            ``source_url`` (str) — Informator card.
+            ``last_updated`` (str) — when the row was last written (ISO date-time).
+            ``staff_id`` (int) — the holder's id.
+            ``first_name`` / ``last_name`` / ``academic_title`` /
+                ``position`` / ``email`` — the holder, as in ``get_staff``.
     """
+    # Optional filters: each value is passed twice — once for the IS NULL
+    # check (None = no filter), once for the comparison.
     cursor.execute("""
         SELECT sf.function_name, sf.department_name, sf.source_url, sf.last_updated,
                s.id, s.first_name, s.last_name, s.academic_title, s.position, s.email
@@ -67,10 +90,10 @@ def get_staff_function(
 
 
 def delete_staff_functions(cursor: DBCursor) -> None:
-    """Delete every staff function.
+    """Delete every function (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM staff_functions;

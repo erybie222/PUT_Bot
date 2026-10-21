@@ -1,10 +1,19 @@
-"""LangChain tools over the ``get_*`` queries. Docstrings are written for the model.
+"""The database lookups the agent can call, one per table.
 
-Each tool returns its rows twice (``content_and_artifact``): as a JSON string the
-model reads, and raw in ``ToolMessage.artifact`` for evaluation. The content is
-serialised here, not by LangChain, which passes an empty list through as an
-empty message instead of ``"[]"``.
-One pooled connection per call — the online layer has no shared transaction.
+Each function here wraps one ``get_*`` query from ``database/queries`` as a
+LangChain tool. **Their docstrings are written for the model, not for
+developers**: LangChain sends the docstring, including the ``Args:``
+section, to the model as the tool's description, and the model decides from
+it when and how to call the tool. Editing a docstring changes how the agent
+behaves, so re-run the evaluation afterwards.
+
+Each tool returns its result twice: as a JSON string, which is what the
+model reads, and as the original Python rows, which LangChain keeps in
+``ToolMessage.artifact`` for the evaluation. The JSON is produced here rather
+than by LangChain because LangChain turns an empty list into an empty message
+instead of ``"[]"``, and the model would not see that nothing was found.
+
+Every call borrows its own database connection and returns it at the end.
 """
 
 import json

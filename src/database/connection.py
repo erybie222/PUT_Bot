@@ -1,4 +1,9 @@
-"""Process-wide psycopg3 connection pool."""
+"""One shared pool of database connections for the whole program.
+
+Opening a PostgreSQL connection is slow, so connections are opened once and
+reused. Everything that talks to the database borrows a connection with
+``get_db_connection()``.
+"""
 
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -10,10 +15,10 @@ _pool: ConnectionPool | None = None
 
 
 def get_pool() -> ConnectionPool:
-    """Return the shared pool, creating it on first use.
+    """Return the shared pool, creating it the first time it is needed.
 
     Returns:
-        ConnectionPool: Open pool configured from ``.env``.
+        ConnectionPool: An open pool using the DB_* settings from ``.env``.
     """
     global _pool
     pool = _pool
@@ -31,17 +36,24 @@ def get_pool() -> ConnectionPool:
 
 @contextmanager
 def get_db_connection() -> Iterator[Connection]:
-    """Borrow a pooled connection; commits on clean exit, rolls back on exception.
+    """Borrow a connection from the pool for the duration of a ``with`` block.
+
+    When the block ends normally its changes are committed; if it raises, they
+    are rolled back. Either way the connection goes back to the pool.
 
     Returns:
-        Iterator[Connection]: The borrowed connection.
+        Iterator[Connection]: The borrowed connection (use it as
+        ``with get_db_connection() as conn:``).
     """
     with get_pool().connection() as conn:
         yield conn
 
 
 def close_pool() -> None:
-    """Close the pool on shutdown; the next ``get_db_connection()`` opens a new one."""
+    """Close all pooled connections; call once when the program ends.
+
+    If the database is used again afterwards, a new pool is opened.
+    """
     global _pool
     if _pool is not None:
         _pool.close()

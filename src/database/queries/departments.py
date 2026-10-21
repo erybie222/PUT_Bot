@@ -1,4 +1,8 @@
-"""SQL helpers for the departments table."""
+"""SQL for the ``departments`` table: units inside the faculty (institutes, zakłady, dean's office).
+
+The faculty itself is not a row here — it is in ``faculties``. Units form a
+tree through ``parent``; units directly under the faculty have no parent.
+"""
 
 from psycopg import Cursor as DBCursor
 
@@ -17,19 +21,24 @@ def upsert_department(
     email: str | None,
     source_url: str | None,
 ) -> None:
-    """Upsert a unit inside a faculty, keyed by its Polish name.
+    """Insert a unit, or update it if a unit with this name is already stored.
+
+    Units are identified by their Polish name. If the university renames a
+    unit, the next ingestion adds it as a new row and the old one remains.
 
     Args:
-        cursor: DB cursor.
-        name: Unit name (PK).
-        symbol: Source symbol; not unique (a zakład shares its institute's).
-        parent: Parent unit name; None directly under the faculty.
-        unit_type: e.g. "instytut", "zakład".
+        cursor: Database cursor to run the SQL on.
+        name: Polish unit name; identifies the unit.
+        symbol: Short symbol from Informator. Not unique: a zakład often has
+            the same symbol as its institute.
+        parent: Name of the unit this one belongs to; None if it sits
+            directly under the faculty. The parent must already be stored.
+        unit_type: Kind of unit, e.g. "instytut", "zakład".
         faculty: Faculty symbol, e.g. "WIiT".
         address: Postal address, or None.
         phone: Phone number(s), or None.
         email: Office e-mail, or None.
-        source_url: Provenance URL.
+        source_url: Link to the unit's page in Informator.
     """
     cursor.execute("""
         INSERT INTO departments (name, symbol, parent, unit_type, faculty, address, phone, email, source_url)
@@ -49,15 +58,22 @@ def upsert_department(
 
 
 def get_department(cursor: DBCursor, name: str) -> dict | None:
-    """One unit plus its direct sub-units.
+    """Find one unit by name, together with the names of its direct sub-units.
 
     Args:
-        cursor: DB cursor.
-        name: Unit name, case-insensitive.
+        cursor: Database cursor to run the SQL on.
+        name: Unit name; letter case is ignored.
 
     Returns:
-        dict | None: Unit row with ``children``; None if no such unit.
-            ``children: []`` means it exists without sub-units — don't conflate.
+        dict | None: None if no unit has this name. Otherwise:
+            ``name`` / ``symbol`` / ``parent`` / ``unit_type`` / ``faculty`` —
+                as described in ``upsert_department``.
+            ``address`` / ``phone`` / ``email`` (str | None) — contact details.
+            ``source_url`` (str | None) — Informator page.
+            ``last_updated`` (str) — when the row was last written (ISO date-time).
+            ``children`` (list[str]) — names of the units directly below it.
+        Note the difference: None means the unit does not exist, while
+        ``children == []`` means it exists but has no sub-units.
     """
     cursor.execute("""
         SELECT name, symbol, parent, unit_type, faculty, address, phone, email,
@@ -74,6 +90,7 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
                "phone", "email", "source_url", "last_updated")
     department = row_to_dict(columns, row)
 
+    # Direct sub-units only (one level down), not the whole subtree.
     cursor.execute("""
         SELECT name FROM departments WHERE LOWER(parent) = LOWER(%s) ORDER BY name;
     """, (department["name"],))
@@ -83,10 +100,10 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
 
 
 def delete_departments(cursor: DBCursor) -> None:
-    """Delete every unit.
+    """Delete every unit (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM departments;

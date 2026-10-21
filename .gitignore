@@ -7,3 +7,5 @@ __pycache__/
 project_plan.md
 .github
 CLAUDE.md
+eval/runs/
+eval/results/

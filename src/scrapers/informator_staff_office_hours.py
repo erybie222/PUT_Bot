@@ -1,4 +1,19 @@
-"""WIiT units, staff and office hours from the Informator PP JSON API."""
+"""Scraper for Informator PP, the university's staff directory.
+
+Collects the faculty's units (institutes, zakłady, offices), its staff, their
+administrative functions and their weekly office hours.
+
+Informator is used through the same JSON API its website calls
+(``https://informator.put.poznan.pl/?do=<Controller.Action>``). Most of it is
+behind a captcha that has to be solved once per session in a browser, so the
+scraper borrows that browser session: INFORMATOR_SESSION in ``.env`` holds
+the session cookie. When the cookie is missing or has expired,
+``InformatorSessionError`` is raised.
+
+The API often sends ``null`` where an object or text is expected, which is
+why the code below writes ``(x.get(key) or {})`` instead of
+``x.get(key, {})`` — the latter only helps when the key is missing.
+"""
 
 import os
 import time
@@ -7,18 +22,19 @@ from requests import Session
 from psycopg import Cursor as DBCursor
 from requests.exceptions import RequestException
 
-from database.queries.office_hours import delete_office_hours_by_id, insert_office_hour
+from database.queries.office_hours import delete_office_hours_of_staff, insert_office_hour
 from database.queries.departments import upsert_department
 from database.queries.staff import upsert_staff
 from database.queries.staff_functions import insert_staff_function
 
 BASE_URL = "https://informator.put.poznan.pl"
 FACULTY_SYMBOL = "WIiT"
-PAGE_SIZE = 100          # server-side maximum per page
-REQUEST_DELAY_S = 0.2    # politeness delay between per-person card requests
+PAGE_SIZE = 100          # people per page when listing staff; the API's maximum
+REQUEST_DELAY_S = 0.2    # pause between per-person requests, to go easy on the server
 MAX_RETRIES = 3          # attempts per API call before giving up
-RETRY_BACKOFF_S = 2.0    # extra wait added before each retry
+RETRY_BACKOFF_S = 2.0    # wait before the 2nd attempt; doubles before the 3rd
 
+# Informator gives weekdays in English; the database stores them in Polish.
 WEEKDAYS_PL = {
     "monday": "poniedziałek",
     "tuesday": "wtorek",
@@ -31,17 +47,20 @@ WEEKDAYS_PL = {
 
 
 class InformatorSessionError(RuntimeError):
-    """Raised when the Informator session cookie is missing, expired or unverified."""
+    """The Informator session cookie is missing, has expired, or its captcha was not solved.
+
+    Copy a fresh cookie into INFORMATOR_SESSION (see ``.env.example``).
+    """
 
 
 def create_session() -> Session:
-    """HTTP session carrying the captcha-verified ``informator`` cookie.
+    """Create an HTTP session that sends the browser's Informator cookie with every request.
 
     Returns:
-        Session: Authorised session.
+        Session: A session ready for ``api_call``.
 
     Raises:
-        InformatorSessionError: INFORMATOR_SESSION unset.
+        InformatorSessionError: INFORMATOR_SESSION is not set.
     """
     cookie = os.getenv("INFORMATOR_SESSION", "").strip()
     if not cookie:
@@ -54,21 +73,25 @@ def create_session() -> Session:
 
 
 def api_call(session: Session, action: str, post: bool = True) -> dict:
-    """Call one ``?do=`` action and return its ``result``.
+    """Call one Informator API action and return the data it sends back.
 
-    Network errors and non-JSON bodies are retried with backoff.
+    Network errors and responses that are not JSON are retried, with a
+    growing pause between attempts.
 
     Args:
-        session: From ``create_session``.
-        action: Query string after ``?do=``.
-        post: POST if True, else GET.
+        session: Session from ``create_session``.
+        action: Everything after ``?do=`` in the URL, e.g.
+            ``"Card.CardShow&uuid=..."``.
+        post: Send a POST request if True, a GET request if False (the
+            organization tree is the only GET endpoint used).
 
     Returns:
-        dict: The response's ``result``.
+        dict: The ``result`` part of the response.
 
     Raises:
-        InformatorSessionError: Login redirect or unverified captcha.
-        RuntimeError: Non-SUCCESS status, or retries exhausted.
+        InformatorSessionError: The session is not valid — the API redirected
+            to the login page or reported an unsolved captcha.
+        RuntimeError: The API reported a failure, or every attempt failed.
     """
     url = f"{BASE_URL}/?do={action}"
     last_error = ""
@@ -104,14 +127,15 @@ def api_call(session: Session, action: str, post: bool = True) -> dict:
 
 
 def find_unit_by_symbol(node: dict, symbol: str) -> dict | None:
-    """Find a unit subtree by symbol.
+    """Search the university's organization tree for the unit with a given symbol.
 
     Args:
-        node: Tree node to search from.
-        symbol: e.g. "WIiT".
+        node: The unit to start from (with all units below it).
+        symbol: Unit symbol, e.g. "WIiT".
 
     Returns:
-        dict | None: Matching subtree, or None.
+        dict | None: The matching unit, including all units below it, or
+        None if no unit has this symbol.
     """
     if node.get("symbol") == symbol:
         return node
@@ -123,14 +147,15 @@ def find_unit_by_symbol(node: dict, symbol: str) -> dict | None:
 
 
 def iter_units(node: dict, depth: int = 0) -> Iterator[tuple[dict, int]]:
-    """Walk a subtree, parents before children.
+    """Go through a unit and every unit below it, each unit before its sub-units.
 
     Args:
-        node: Subtree root.
-        depth: Depth of ``node``.
+        node: The unit to start from.
+        depth: How deep ``node`` is; the starting unit is 0, its direct
+            sub-units 1, and so on.
 
     Returns:
-        Iterator[tuple[dict, int]]: ``(node, depth)`` pairs.
+        Iterator[tuple[dict, int]]: Pairs of (unit, its depth).
     """
     yield node, depth
     for child in node.get("children") or []:
@@ -138,14 +163,17 @@ def iter_units(node: dict, depth: int = 0) -> Iterator[tuple[dict, int]]:
 
 
 def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
-    """Every employee of a unit and its sub-units, page by page.
+    """List every employee of a unit, including the units below it.
+
+    The API returns at most ``PAGE_SIZE`` people per request, so this keeps
+    requesting the next page until all are fetched.
 
     Args:
-        session: From ``create_session``.
-        unit_id: Informator unit id.
+        session: Session from ``create_session``.
+        unit_id: Informator's id of the unit.
 
     Returns:
-        Iterator[dict]: Raw employee items.
+        Iterator[dict]: One employee entry per person, as the API returns it.
     """
     page = 1
     while True:
@@ -164,17 +192,19 @@ def fetch_staff(session: Session, unit_id: int) -> Iterator[dict]:
 def pick_primary_position(
     positions: dict, unit_names_by_id: dict[int, tuple[str, int]]
 ) -> tuple[str | None, str | None]:
-    """Pick the position held in the deepest WIiT unit.
+    """Choose which of a person's jobs describes them, and return its unit and title.
 
-    Unit and position come from the same entry, so they stay consistent.
+    A person can hold several positions. The one in the most specific WIiT
+    unit wins (a zakład beats the institute it belongs to). The unit and the
+    job title are taken from the same position so they always match.
 
     Args:
-        positions: ``employment.data.positions`` from the card.
-        unit_names_by_id: Unit id -> (name, depth).
+        positions: The person's positions, from ``employment.data.positions``.
+        unit_names_by_id: WIiT unit id → (unit name, depth in the tree).
 
     Returns:
-        tuple[str | None, str | None]: ``(unit, position)``; None when no
-            position sits in a known WIiT unit.
+        tuple[str | None, str | None]: (unit name, job title); both None if
+        none of the positions is in a WIiT unit.
     """
     best_name = None
     best_position = None
@@ -182,6 +212,7 @@ def pick_primary_position(
     for position in positions.values():
         department = position.get("department") or {}
         unit = unit_names_by_id.get(department.get("id"))
+        # unit is (name, depth); deeper = more specific (zakład beats instytut).
         if unit and unit[1] > best_depth:
             best_name, best_depth = unit[0], unit[1]
             best_position = ((position.get("name") or {}).get("pl") or "").strip() or None
@@ -189,13 +220,14 @@ def pick_primary_position(
 
 
 def build_location(meeting: dict) -> str | None:
-    """Location string for one slot.
+    """Describe where one office-hours slot takes place.
 
     Args:
-        meeting: One entry of the ``meetings`` module.
+        meeting: One slot from the person's card.
 
     Returns:
-        str | None: ``"<building> <room>"``, ``"online"`` or None.
+        str | None: "<building> <room>" (e.g. "A2 101"), "online" if there is
+        only a meeting link, or None if neither is given.
     """
     parts = [meeting.get("building_symbol"), meeting.get("room_number")]
     location = " ".join(part for part in parts if part)
@@ -204,25 +236,29 @@ def build_location(meeting: dict) -> str | None:
     return location[:100] or None
 
 
-def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid: str, source_url: str) -> int:
-    """Replace one person's weekly slots with the currently published set.
+def sync_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid: str, source_url: str) -> int:
+    """Make the database hold exactly the office hours currently on one person's card.
+
+    The person's stored slots are deleted and the current ones inserted, so
+    slots removed from Informator also disappear here. Only weekly slots are
+    stored; one-off meetings on a specific date are skipped.
 
     Args:
-        cursor: DB cursor.
-        session: From ``create_session``.
-        staff_id: FK to ``staff``.
-        uuid: Informator card uuid.
-        source_url: Card URL.
+        cursor: Database cursor to run the SQL on.
+        session: Session from ``create_session``.
+        staff_id: The person's id in the database.
+        uuid: The person's card id in Informator.
+        source_url: Link to the person's card, stored as the source.
 
     Returns:
-        int: Slots stored.
+        int: Number of slots stored.
     """
     result = api_call(session, f"Card.CardShow&uuid={uuid}", True)
     modules = result["card"]["modules"]
     meetings_data = (modules.get("meetings", {}) or {}).get("data", {}) or {}
     meetings = meetings_data.get("meetings", {}) or {}
 
-    delete_office_hours_by_id(cursor, staff_id)
+    delete_office_hours_of_staff(cursor, staff_id)
     stored = 0
     for meeting in meetings.values():
         weekday = WEEKDAYS_PL.get(meeting.get("weekday"))
@@ -243,16 +279,20 @@ def process_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid
 
 
 def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url: str) -> int:
-    """Insert one person's administrative functions (insert-only, see CLAUDE.md).
+    """Store one person's administrative functions, e.g. "Dyrektor instytutu".
+
+    Functions are only added, never removed, so a function the person no
+    longer holds stays in the database until it is emptied with ``clean_db.py``.
 
     Args:
-        cursor: DB cursor.
-        staff_id: FK to ``staff``.
-        functions: ``employment.data.functions`` from the card; may be null.
-        source_url: Card URL.
+        cursor: Database cursor to run the SQL on.
+        staff_id: The person's id in the database.
+        functions: The functions from the person's card
+            (``employment.data.functions``); may be None.
+        source_url: Link to the person's card, stored as the source.
 
     Returns:
-        int: Functions stored.
+        int: Number of functions stored.
     """
     stored = 0
     for function in (functions or {}).values():
@@ -272,14 +312,21 @@ def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url
     return stored
 
 
-def process_informator(cursor: DBCursor) -> None:
-    """Scrape WIiT units, staff, functions and office hours on the caller's cursor.
+def ingest_informator(cursor: DBCursor) -> None:
+    """Store WIiT's units, then every staff member with their functions and office hours.
+
+    People without an e-mail or without a full name are skipped, because the
+    e-mail is what identifies a person in the database. If one person's
+    office hours fail to load, that is printed and the next person follows;
+    an expired session stops the whole step.
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on (the caller commits).
 
     Raises:
-        InformatorSessionError: Session missing or rejected.
+        InformatorSessionError: The session cookie is missing or no longer valid.
+        RuntimeError: WIiT was not found in Informator's organization tree,
+            or an API call failed.
     """
     print("Starting Informator PP staff scraper...")
     session = create_session()
@@ -290,6 +337,9 @@ def process_informator(cursor: DBCursor) -> None:
     if faculty is None:
         raise RuntimeError(f"Faculty with symbol {FACULTY_SYMBOL!r} not found in organization tree")
 
+    # Parents come before children, so a unit's parent row already exists
+    # when the unit is upserted (departments.parent is a foreign key).
+    # Name slices here and below match the VARCHAR lengths in docker/init.sql.
     units = list(iter_units(faculty))
     unit_names_by_id: dict[int, tuple[str, int]] = {}
     for node, depth in units:
@@ -314,6 +364,7 @@ def process_informator(cursor: DBCursor) -> None:
     print(f"Stored {len(units) - 1} units of {FACULTY_SYMBOL}.")
 
     processed = skipped = hours_total = functions_total = 0
+    # The faculty node includes everyone in its institutes and zakłady.
     for item in fetch_staff(session, faculty["id"]):
         basic = (item["modules"].get("basic", {}) or {}).get("data", {}) or {}
         contact = (item["modules"].get("contact", {}) or {}).get("data", {}) or {}
@@ -345,7 +396,7 @@ def process_informator(cursor: DBCursor) -> None:
         functions_total += store_functions(cursor, staff_id, employment.get("functions", {}) or {}, source_url)
 
         try:
-            hours = process_office_hours(cursor, session, staff_id, item["uuid"], source_url)
+            hours = sync_office_hours(cursor, session, staff_id, item["uuid"], source_url)
         except InformatorSessionError:
             raise  # dead session — no point continuing with the remaining people
         except (RuntimeError, RequestException) as error:

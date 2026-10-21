@@ -1,3 +1,17 @@
+"""Scraper for the ECTS course catalog on put.poznan.pl.
+
+Each major has one catalog page per academic year listing every course by
+semester. The page structure the scraper relies on:
+
+- ``<h2>`` — a semester heading, e.g. "Semestr 1";
+- ``<h3>`` — a course group under it, e.g. "Przedmioty obligatoryjne";
+- the ``<table>`` right after each ``<h3>`` — one course per row, with the
+  columns name+code, ECTS, hours (W/C/L/P) and links to the course card.
+
+If the university changes this layout, the scraper silently finds fewer
+courses, so check the printed course list after a run.
+"""
+
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -7,13 +21,15 @@ from database.queries.courses import upsert_course
 
 
 def parse_hours(hours_str: str) -> tuple[int, bool]:
-    """Parse an hours cell like ``'30h (E)'``.
+    """Read the number of hours, and the exam marker, from one hours cell.
 
     Args:
-        hours_str: Raw cell text.
+        hours_str: Cell text, e.g. ``"30"`` or ``"30 (E)"``. "(E)" in the
+            lecture column means the course ends with an exam.
 
     Returns:
-        tuple[int, bool]: Hours, and whether ``(E)`` marks an exam.
+        tuple[int, bool]: The hours (0 for an empty cell) and whether the
+        cell contains "(E)".
     """
     if not hours_str or hours_str.strip() == '':
         return 0, False
@@ -28,13 +44,16 @@ def parse_hours(hours_str: str) -> tuple[int, bool]:
     return hours_int, has_exam
 
 
-def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
-    """Scrape one major's ECTS catalog page and upsert its courses.
+def ingest_ects_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
+    """Download one major's catalog page and store every course on it.
+
+    If the page cannot be downloaded, the error is printed and the major is
+    skipped; the rest of the ingestion continues.
 
     Args:
-        cursor: DB cursor.
-        url: Catalog page URL.
-        major_id: FK to ``majors``.
+        cursor: Database cursor to run the SQL on.
+        url: Address of the major's catalog page.
+        major_id: Id of the major the courses belong to.
     """
     print(f"Fetching full catalog from: {url}")
 
@@ -60,8 +79,7 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
         # Check if course is obligatory or elective based on the section title
         is_obligatory = 'obligatoryjne' in section_title
 
-        # --- DYNAMIC SEMESTER DISCOVERY ---
-        # Find the nearest H2 header located above in the HTML structure
+        # The semester is the nearest <h2> above this section, e.g. "Semestr 1"
         parent_h2 = section.find_previous('h2')
         if not parent_h2:
             continue
@@ -88,7 +106,8 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
         rows = tbody.find_all('tr') if tbody else table.find_all('tr')
 
         for row in rows:
-            # Check if the row is an elective group row and adjust the obligatory flag accordingly
+            # Check if the row is an elective group row and adjust the obligatory flag accordingly.
+            # The flag is not reset: every later row in this section is treated as elective too.
             if 'elective-group-row' in row.get('class', []):
                 is_obligatory = False
 
@@ -97,7 +116,7 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
             if len(cells) < 8:
                 continue
 
-            # 1. Extract Name and Code securely using their CSS classes
+            # 1. Name and code, found by their CSS classes rather than position
             name_span = cells[0].find('span', class_='course-name')
             code_span = cells[0].find('span', class_='course-code')
 
@@ -115,12 +134,13 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
             ects = int(ects_text) if ects_text.isdigit() else 0
 
             # 3. Extract Hours and Exam info
-            w_hours, w_exam = parse_hours(cells[2].get_text(strip=True))
-            c_hours, _ = parse_hours(cells[3].get_text(strip=True))
-            l_hours, _ = parse_hours(cells[4].get_text(strip=True))
-            p_hours, _ = parse_hours(cells[5].get_text(strip=True))
+            # Columns W/C/L/P; only the lecture (W) cell carries the (E) exam marker
+            lecture_hours, has_exam = parse_hours(cells[2].get_text(strip=True))
+            classes_hours, _ = parse_hours(cells[3].get_text(strip=True))
+            lab_hours, _ = parse_hours(cells[4].get_text(strip=True))
+            project_hours, _ = parse_hours(cells[5].get_text(strip=True))
 
-            form_of_assessment = "Egzamin" if w_exam else "Zaliczenie z ocena"
+            assessment_type = "Egzamin" if has_exam else "Zaliczenie z ocena"
 
             # 4. Extract the PDF Link in Polish language (from the 'PL' column - index 7)
             pdf_link = None
@@ -144,11 +164,11 @@ def process_full_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
                 is_obligatory=is_obligatory,
                 is_english=is_english,
                 ects=ects,
-                w=w_hours,
-                c=c_hours,
-                l=l_hours,
-                p=p_hours,
-                form=form_of_assessment,
+                hours_lecture=lecture_hours,
+                hours_classes=classes_hours,
+                hours_lab=lab_hours,
+                hours_project=project_hours,
+                assessment_type=assessment_type,
                 source_url=pdf_link
             )
 

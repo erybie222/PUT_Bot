@@ -1,4 +1,4 @@
-"""SQL helpers for the admission_thresholds table."""
+"""SQL for the ``admission_thresholds`` table: minimum points and places per major and year."""
 
 from psycopg import Cursor as DBCursor
 
@@ -13,16 +13,17 @@ def upsert_threshold(
     capacity: int,
     source_url: str,
 ) -> None:
-    """Upsert a round-1 threshold.
+    """Insert one major's first-round threshold for one year, or update it if already stored.
 
     Args:
-        cursor: DB cursor.
-        major_id: FK to ``majors``; must already exist.
+        cursor: Database cursor to run the SQL on.
+        major_id: Id of the major; the major must already be in the database.
         year: Recruitment year.
-        points: Minimum points.
-        capacity: Number of places.
-        source_url: Provenance (``"PDF: <path>"``).
+        points: Minimum number of points that got a candidate admitted.
+        capacity: Number of places offered.
+        source_url: Where the numbers come from, as ``"PDF: <path>"``.
     """
+    # round is always 1: the thresholds PDF only lists the first recruitment round.
     cursor.execute("""
         INSERT INTO admission_thresholds
         (major_id, year, round, min_points, capacity, source_url)
@@ -43,19 +44,29 @@ def get_admission_threshold(
     degree: str | None = None,
     study_mode: str | None = None,
 ) -> list[dict]:
-    """Thresholds for a major in one year.
+    """Find a major's admission thresholds for one year.
 
     Args:
-        cursor: DB cursor.
-        major_name: Major name, case-insensitive.
+        cursor: Database cursor to run the SQL on.
+        major_name: Major name; letter case is ignored.
         year: Recruitment year.
-        round: Optional round filter (1 or 2).
-        degree: Optional degree filter.
-        study_mode: Optional study-mode filter.
+        round: Only this recruitment round (1 or 2); None for all.
+        degree: Only this degree; None for all.
+        study_mode: Only this study mode; None for all.
 
     Returns:
-        list[dict]: Matching rows; ``[]`` if none stored.
+        list[dict]: Matching thresholds, ordered by round; empty if none are
+        stored. Each dict:
+            ``major_name`` / ``degree`` / ``study_mode`` (str) — which major.
+            ``year`` (int) — recruitment year.
+            ``round`` (int) — recruitment round.
+            ``min_points`` (float) — minimum points to be admitted.
+            ``capacity`` (int | None) — number of places.
+            ``source_url`` (str) — where the numbers come from.
+            ``last_updated`` (str) — when the row was last written (ISO date-time).
     """
+    # Optional filters: each value is passed twice — once for the IS NULL
+    # check (None = no filter), once for the comparison.
     cursor.execute("""
         SELECT m.name, m.degree, m.study_mode, t.year, t.round,
                t.min_points, t.capacity, t.source_url, t.last_updated
@@ -75,10 +86,10 @@ def get_admission_threshold(
 
 
 def delete_admission_thresholds(cursor: DBCursor) -> None:
-    """Delete every threshold.
+    """Delete every threshold (used by ``clean_db.py``).
 
     Args:
-        cursor: DB cursor.
+        cursor: Database cursor to run the SQL on.
     """
     cursor.execute("""
         DELETE FROM admission_thresholds;

@@ -1,14 +1,27 @@
-"""Every prompt: ``SYSTEM_PROMPT`` (agent) and the two eval judges.
+"""All prompts in the project: the agent's system prompt and the two evaluation judges' prompts.
 
-They live together because the rules the agent follows and the rubric it is
-scored against must say the same thing.
+- ``SYSTEM_PROMPT`` — the agent's rules: never invent data, cite the source,
+  ask when a name is ambiguous, refuse questions outside WIiT, and how to
+  phrase answers.
+- ``FAITHFULNESS_PROMPT`` — tells a judge to check that every claim in an
+  answer is backed by the data the agent's tools returned.
+- ``CORRECTNESS_PROMPT`` — tells a judge to check the answer against the
+  verified reference answer from the benchmark.
 
-**Braces differ.** ``SYSTEM_PROMPT`` reaches ``create_agent`` verbatim (single
-braces); the judge prompts go through ``str.format()``, so every literal brace
-is doubled — un-doubling one is a ``KeyError`` mid-run.
+They are kept in one file because the rules the agent follows and the rules
+it is scored by must say the same thing; changing one usually means changing
+the other.
 
-**Examples are invented** and must never come from ``eval/gold_set.yaml`` or
-spell out a major's English↔Polish name, or the eval becomes a memory test.
+Two things to keep in mind when editing:
+
+- **Curly braces.** ``SYSTEM_PROMPT`` is used as is, so it uses single
+  braces. The judge prompts are filled in with ``str.format()``, so every
+  literal brace in them must be doubled (``{{`` / ``}}``); a single one makes
+  the evaluation crash with ``KeyError`` partway through a run.
+- **Examples are made up on purpose.** They must never be copied from
+  ``eval/benchmark.yaml`` or reveal how a major's English name maps to its
+  Polish one — a prompt that contains the answers would turn the
+  evaluation into a memory test.
 """
 
 SYSTEM_PROMPT = """\

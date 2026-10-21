@@ -1,25 +1,33 @@
+"""Building the WIiTek agent and the evaluation judge model, and asking the agent a question.
+
+The agent is a LangChain tool-calling agent: an OpenAI chat model, the
+read-only database tools from ``database.repository`` and the system prompt
+from ``templates``. It decides by itself which tools to call for a question.
+"""
 
 from langchain.agents import create_agent
 from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph.state import CompiledStateGraph
 
-from config import JudgeSettings, LLMSettings
+from config import JudgeSettings, AgentSettings
 from database.repository import TOOLS
 from templates import SYSTEM_PROMPT
 
 
-def build_model(settings: LLMSettings) -> ChatOpenAI:
-    """Chat model for the agent.
+def build_agent_model(settings: AgentSettings) -> ChatOpenAI:
+    """Create the OpenAI chat model the agent thinks with.
 
     Args:
-        settings: Built by the caller; nothing here reads the environment.
+        settings: Model name, temperature and reasoning effort; this function
+            does not read the environment itself.
 
     Returns:
-        ChatOpenAI: Configured model.
+        ChatOpenAI: The configured model. Settings left as None are not sent
+        to the API at all.
 
     Raises:
-        RuntimeError: OPENAI_API_KEY unset.
+        RuntimeError: OPENAI_API_KEY is not set.
     """
     return ChatOpenAI(
         model=settings.model,
@@ -30,16 +38,19 @@ def build_model(settings: LLMSettings) -> ChatOpenAI:
 
 
 def build_judge_model(settings: JudgeSettings) -> ChatOpenAI:
-    """Chat model for the eval judges, separate so it can differ from the model under test.
+    """Create the chat model that scores answers during evaluation.
+
+    It has its own settings so it can be a different model from the agent: a
+    judge built on the same model tends to miss the same mistakes.
 
     Args:
-        settings: Judge settings, built by the caller.
+        settings: The judge's model name, temperature and reasoning effort.
 
     Returns:
-        ChatOpenAI: Configured model.
+        ChatOpenAI: The configured model.
 
     Raises:
-        RuntimeError: OPENAI_API_KEY unset.
+        RuntimeError: OPENAI_API_KEY is not set.
     """
     return ChatOpenAI(
         model=settings.model,
@@ -49,34 +60,38 @@ def build_judge_model(settings: JudgeSettings) -> ChatOpenAI:
     )
 
 
-def build_agent(settings: LLMSettings) -> CompiledStateGraph:
-    """WIiTek agent: chat model + read-only DB tools + system prompt.
+def build_agent(settings: AgentSettings) -> CompiledStateGraph:
+    """Create the WIiTek agent: the chat model, the database tools and the system prompt.
 
     Args:
-        settings: Model settings, built by the caller.
+        settings: Settings for the agent's chat model.
 
     Returns:
-        CompiledStateGraph: Agent ready for ``.invoke``.
+        CompiledStateGraph: The agent; pass it to ``ask``.
 
     Raises:
-        RuntimeError: OPENAI_API_KEY unset.
+        RuntimeError: OPENAI_API_KEY is not set.
     """
     return create_agent(
-        model=build_model(settings),
+        model=build_agent_model(settings),
         tools=TOOLS,
         system_prompt=SYSTEM_PROMPT,
     )
 
 
 def ask(agent: CompiledStateGraph, question: str) -> list[BaseMessage]:
-    """Put one question to the agent and return the whole exchange.
+    """Ask the agent one question and return the whole exchange, not just the answer.
+
+    The full exchange is returned because the evaluation needs to see which
+    tools were called and what they returned.
 
     Args:
-        agent: Agent from ``build_agent``.
-        question: Question in Polish or English.
+        agent: The agent from ``build_agent``.
+        question: The user's question, in Polish or English.
 
     Returns:
-        list[BaseMessage]: Every message, answer last. Calls are in
-            ``AIMessage.tool_calls``, their rows in ``ToolMessage.artifact``.
+        list[BaseMessage]: Every message in order; the last one is the final
+        answer. Tool calls the agent made are in ``AIMessage.tool_calls``, and
+        the rows each tool returned are in ``ToolMessage.artifact``.
     """
     return agent.invoke({"messages": [HumanMessage(content=question)]})["messages"]
