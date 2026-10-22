@@ -52,8 +52,8 @@ def get_staff_function(
     Args:
         cursor: Database cursor to run the SQL on.
         staff_id: Only this person's functions; None for everyone.
-        function_name: Only this exact function (case ignored); None for all.
-        department_name: Only functions in this exact unit (case ignored);
+        function_name: Only this exact function (case and diacritics ignored); None for all.
+        department_name: Only functions in this exact unit (case and diacritics ignored);
             None for all.
 
     Returns:
@@ -75,8 +75,8 @@ def get_staff_function(
         FROM staff_functions sf
         JOIN staff s ON s.id = sf.staff_id
         WHERE (%s::int IS NULL OR sf.staff_id = %s::int)
-          AND (%s::text IS NULL OR LOWER(sf.function_name) = LOWER(%s::text))
-          AND (%s::text IS NULL OR LOWER(sf.department_name) = LOWER(%s::text))
+          AND (%s::text IS NULL OR LOWER(unaccent(sf.function_name)) = LOWER(unaccent(%s::text)))
+          AND (%s::text IS NULL OR LOWER(unaccent(sf.department_name)) = LOWER(unaccent(%s::text)))
         ORDER BY s.last_name, s.first_name;
     """, (
         staff_id, staff_id,

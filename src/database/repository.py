@@ -61,7 +61,7 @@ def get_major(
     doesn't uniquely identify a major, so ask which degree/study mode is meant.
 
     Args:
-        major_name: Major name to look up (case-insensitive). Omit to list all majors.
+        major_name: Major name to look up (case- and diacritic-insensitive). Omit to list all majors.
         degree: Optional filter: "bachelor-of-engineering" or "masters".
         study_mode: Optional filter: "full-time" or "part-time".
     """
@@ -86,7 +86,7 @@ def get_admission_threshold(
     data the system has. Say you don't know rather than estimate a number.
 
     Args:
-        major_name: Major name to look up (case-insensitive).
+        major_name: Major name to look up (case- and diacritic-insensitive).
         year: Recruitment year.
         round: Optional filter on recruitment round (1 or 2).
         degree: Optional filter: "bachelor-of-engineering" or "masters".
@@ -115,8 +115,8 @@ def get_course(
     universal.
 
     Args:
-        major_name: Major name to look up (case-insensitive).
-        course_name: Optional substring filter on course name (case-insensitive).
+        major_name: Major name to look up (case- and diacritic-insensitive).
+        course_name: Optional substring filter on course name (case- and diacritic-insensitive).
         semester: Optional filter on semester (1..8).
         is_obligatory: Optional filter: true for obligatory, false for elective.
         is_english: Optional filter for English-taught courses.
@@ -138,7 +138,7 @@ def get_department(name: str) -> tuple[str, dict | None]:
     confused.
 
     Args:
-        name: Unit name to look up (case-insensitive).
+        name: Unit name to look up (case- and diacritic-insensitive).
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
@@ -160,9 +160,9 @@ def get_staff(
     title) before answering anything about that person — never pick one.
 
     Args:
-        last_name: Family name to look up (case-insensitive).
-        first_name: Optional exact filter on given name (case-insensitive).
-        department: Optional exact filter on unit name (case-insensitive).
+        last_name: Family name to look up (case- and diacritic-insensitive).
+        first_name: Optional exact filter on given name (case- and diacritic-insensitive).
+        department: Optional exact filter on unit name (case- and diacritic-insensitive).
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:
@@ -185,8 +185,8 @@ def get_staff_function(
 
     Args:
         staff_id: Optional exact filter on the holder's staff id.
-        function_name: Optional exact filter on function name (case-insensitive).
-        department_name: Optional exact filter on the unit the function is held in (case-insensitive).
+        function_name: Optional exact filter on function name (case- and diacritic-insensitive).
+        department_name: Optional exact filter on the unit the function is held in (case- and diacritic-insensitive).
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:

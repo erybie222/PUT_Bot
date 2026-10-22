@@ -74,7 +74,7 @@ def get_course(
 
     Args:
         cursor: Database cursor to run the SQL on.
-        major_name: Major name; letter case is ignored.
+        major_name: Major name; letter case and Polish diacritics are ignored.
         course_name: Only courses whose name contains this text (case is
             ignored); None for all.
         semester: Only this semester; None for all.
@@ -97,7 +97,8 @@ def get_course(
             ``source_url`` (str | None) — course card link.
             ``last_updated`` (str) — when the row was last written (ISO date-time).
     """
-    # Substring match, so "Analiza" also finds "Analiza matematyczna 1".
+    # Substring match, so "Analiza" also finds "Analiza matematyczna 1";
+    # diacritics are ignored on both sides, as in every name lookup here.
     course_pattern = f"%{course_name}%" if course_name is not None else None
 
     # Optional filters: each value is passed twice — once for the IS NULL
@@ -108,8 +109,8 @@ def get_course(
                c.assessment_type, c.source_url, c.last_updated
         FROM courses c
         JOIN majors m ON m.id = c.major_id
-        WHERE LOWER(m.name) = LOWER(%s)
-          AND (%s::text IS NULL OR c.name ILIKE %s::text)
+        WHERE LOWER(unaccent(m.name)) = LOWER(unaccent(%s::text))
+          AND (%s::text IS NULL OR unaccent(c.name) ILIKE unaccent(%s::text))
           AND (%s::int IS NULL OR c.semester = %s::int)
           AND (%s::boolean IS NULL OR c.is_obligatory = %s::boolean)
           AND (%s::boolean IS NULL OR c.is_english = %s::boolean)

@@ -53,7 +53,7 @@ def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str
 
     Args:
         cursor: Database cursor to run the SQL on.
-        major_name: Major name; letter case is ignored.
+        major_name: Major name; letter case and Polish diacritics are ignored.
         degree: Degree, spelled exactly as stored.
         study_mode: Study mode, spelled exactly as stored.
 
@@ -62,7 +62,7 @@ def get_major_id(cursor: DBCursor, major_name: str, degree: str, study_mode: str
     """
     cursor.execute("""
         SELECT id FROM majors
-        WHERE LOWER(name) = LOWER(%s) AND degree = %s AND study_mode = %s;
+        WHERE LOWER(unaccent(name)) = LOWER(unaccent(%s::text)) AND degree = %s AND study_mode = %s;
     """, (major_name, degree, study_mode))
 
     result = cursor.fetchone()
@@ -82,7 +82,8 @@ def get_major(
 
     Args:
         cursor: Database cursor to run the SQL on.
-        major_name: Major name, letter case ignored; None lists all majors.
+        major_name: Major name, letter case and Polish diacritics ignored;
+            None lists all majors.
         degree: Only this degree; None for all.
         study_mode: Only this study mode; None for all.
 
@@ -103,7 +104,7 @@ def get_major(
     cursor.execute("""
         SELECT id, name, degree, study_mode, profile, faculty, is_english
         FROM majors
-        WHERE (%s::text IS NULL OR LOWER(name) = LOWER(%s::text))
+        WHERE (%s::text IS NULL OR LOWER(unaccent(name)) = LOWER(unaccent(%s::text)))
           AND (%s::text IS NULL OR degree = %s::text)
           AND (%s::text IS NULL OR study_mode = %s::text)
         ORDER BY name, degree, study_mode;

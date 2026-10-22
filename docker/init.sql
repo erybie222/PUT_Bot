@@ -1,4 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS vector;
+-- Lets name lookups ignore Polish diacritics ("Cyberbezpieczenstwo" finds "Cyberbezpieczeństwo").
+CREATE EXTENSION IF NOT EXISTS unaccent;
 
 CREATE TABLE IF NOT EXISTS faculties (
     symbol VARCHAR(10) CONSTRAINT pk_faculties PRIMARY KEY,

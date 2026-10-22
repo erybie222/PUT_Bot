@@ -69,10 +69,11 @@ def get_staff(
 
     Args:
         cursor: Database cursor to run the SQL on.
-        last_name: Last name; letter case is ignored.
-        first_name: Only people with exactly this first name (case ignored);
+        last_name: Last name; letter case and Polish diacritics are ignored.
+        first_name: Only people with exactly this first name (case and diacritics ignored);
             None for any.
-        department: Only people in exactly this unit (case ignored); None
+        department: Only people in exactly this unit (case and diacritics
+            ignored); None
             for any.
 
     Returns:
@@ -94,9 +95,9 @@ def get_staff(
         SELECT id, first_name, last_name, academic_title, position, user_type,
                department, email, phone, source_url
         FROM staff
-        WHERE LOWER(last_name) = LOWER(%s)
-          AND (%s::text IS NULL OR LOWER(first_name) = LOWER(%s::text))
-          AND (%s::text IS NULL OR LOWER(department) = LOWER(%s::text))
+        WHERE LOWER(unaccent(last_name)) = LOWER(unaccent(%s::text))
+          AND (%s::text IS NULL OR LOWER(unaccent(first_name)) = LOWER(unaccent(%s::text)))
+          AND (%s::text IS NULL OR LOWER(unaccent(department)) = LOWER(unaccent(%s::text)))
         ORDER BY first_name, last_name;
     """, (last_name, first_name, first_name, department, department))
 

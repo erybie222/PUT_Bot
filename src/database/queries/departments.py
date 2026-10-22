@@ -62,7 +62,7 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
 
     Args:
         cursor: Database cursor to run the SQL on.
-        name: Unit name; letter case is ignored.
+        name: Unit name; letter case and Polish diacritics are ignored.
 
     Returns:
         dict | None: None if no unit has this name. Otherwise:
@@ -79,7 +79,7 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
         SELECT name, symbol, parent, unit_type, faculty, address, phone, email,
                source_url, last_updated
         FROM departments
-        WHERE LOWER(name) = LOWER(%s);
+        WHERE LOWER(unaccent(name)) = LOWER(unaccent(%s::text));
     """, (name,))
 
     row = cursor.fetchone()

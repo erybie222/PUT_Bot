@@ -62,7 +62,7 @@ def get_office_hour(
     Args:
         cursor: Database cursor to run the SQL on.
         staff_id: The person's id, from ``get_staff``.
-        day_of_week: Only this Polish weekday (case ignored); None for all days.
+        day_of_week: Only this Polish weekday (case and diacritics ignored); None for all days.
 
     Returns:
         list[dict]: The person's slots ordered by day and start time. Empty
@@ -82,7 +82,7 @@ def get_office_hour(
                source_url, last_updated
         FROM office_hours
         WHERE staff_id = %s
-          AND (%s::text IS NULL OR LOWER(day_of_week) = LOWER(%s::text))
+          AND (%s::text IS NULL OR LOWER(unaccent(day_of_week)) = LOWER(unaccent(%s::text)))
         ORDER BY
             CASE day_of_week
                 WHEN 'poniedziałek' THEN 1

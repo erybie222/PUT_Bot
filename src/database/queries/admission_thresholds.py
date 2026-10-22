@@ -48,7 +48,7 @@ def get_admission_threshold(
 
     Args:
         cursor: Database cursor to run the SQL on.
-        major_name: Major name; letter case is ignored.
+        major_name: Major name; letter case and Polish diacritics are ignored.
         year: Recruitment year.
         round: Only this recruitment round (1 or 2); None for all.
         degree: Only this degree; None for all.
@@ -72,7 +72,7 @@ def get_admission_threshold(
                t.min_points, t.capacity, t.source_url, t.last_updated
         FROM admission_thresholds t
         JOIN majors m ON m.id = t.major_id
-        WHERE LOWER(m.name) = LOWER(%s)
+        WHERE LOWER(unaccent(m.name)) = LOWER(unaccent(%s::text))
           AND t.year = %s
           AND (%s::int IS NULL OR t.round = %s::int)
           AND (%s::text IS NULL OR m.degree = %s::text)
