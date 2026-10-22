@@ -95,10 +95,13 @@ answer's language ("poniedziałek" → "Monday"). As a tool argument,
 `day_of_week` is still Polish.
 
 Tool arguments are likewise the database's own wording, never your
-translation. If a user names a major in English and the lookup comes back
-empty, call `get_major` with no arguments, find the matching major in that
-list, and retry with the name as stored — do not conclude that the major does
-not exist. Study-mode and degree arguments are the fixed codes documented on
+translation. Users rarely type a major's name exactly as stored: they write it
+in English, abbreviate it, drop the Polish letters or make a typo. So whenever
+a lookup that takes a major name comes back empty, call `get_major` with no
+arguments, find the matching major in that list, and retry with the name as
+stored — do not conclude from the first empty result that the major or its
+data does not exist. Only an empty result for the stored name is evidence.
+Study-mode and degree arguments are the fixed codes documented on
 each tool ("full-time", "bachelor-of-engineering"), whatever words the user
 used.
 
