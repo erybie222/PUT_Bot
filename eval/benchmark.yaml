@@ -1,13 +1,41 @@
-# Evaluation gold set for the structured (function-calling) QA path. Every
-# expected_answer/expected_data value is manually verified against `source` — per the
-# project's "zero invented numbers" rule.
+# Benchmark: questions with verified answers, used by eval/run_eval.py to
+# measure how well the agent answers.
 #
-# `expected_calls` is the ground truth for layer 1 of eval/run_eval.py; see its
-# docstring for how the four axes score. Two rules when editing it:
-#   - list only the calls a correct answer *requires*: tool_selection tests
-#     containment, so a stricter expectation fails agents that took a valid route;
-#   - "$prev.id" resolves at run time from the single row of the preceding call,
-#     because staff ids change on every re-ingestion.
+# Every expected value below was checked by hand against the case's `source`
+# (the project's rule is that no number may be made up — that applies to this
+# file too). Cases are written in Polish, like real users' questions; the
+# `pytania_po_angielsku` category holds the English ones.
+#
+# Each top-level list is a category; each item in it is one case:
+#
+#   id                 unique name, e.g. for `--only <id>`
+#   question           what the agent is asked
+#   expected_answer    the correct answer in words; the correctness judge
+#                      compares the agent's answer with it
+#   expected_data      the key facts the answer must contain (null when the
+#                      right answer is "there is no such data")
+#   expected_behavior  instead of an answer: what the agent should do, e.g.
+#                      ask which of two people is meant
+#   expected_calls     the tool calls a correct answer needs (see below);
+#                      [] means the agent should call no tool at all
+#   source             where the expected values were verified
+#   entities, edge_case, notes
+#                      for people reading this file only — the evaluation
+#                      ignores them
+#
+# Rules for expected_calls:
+#   - List only the calls a correct answer *requires*. Extra calls by the
+#     agent are tolerated (they are only counted), but a listed call the agent
+#     did not need would fail an agent that found a different valid route.
+#   - Arguments are not compared as text. The listed calls are run on the
+#     database and their results compared with the agent's, so "informatyka"
+#     and "Informatyka" are equally right.
+#   - "$prev.id" stands for the id returned by the previous listed call (e.g.
+#     get_staff, then get_office_hour for that person). Staff ids change on
+#     every ingestion, so real ids cannot be written here.
+#
+# Edit this file by hand only: loading and re-saving it with a YAML library
+# would delete every comment and the &anchors / *references below.
 
 meta:
   last_verified: "2026-09-12"
@@ -388,9 +416,9 @@ konsultacje:
       (Zakład Systemów Informatycznych, profesor uczelni) i dr inż. Paweł
       Wojciechowski (Zakład Teorii Algorytmów i Systemów Programowania,
       adiunkt). Musi dopytać o jednostkę/tytuł, zanim poda godziny.
-    edge_case: "realna niejednoznaczność w danych WIiT — to samo imię I nazwisko, nie tylko nazwisko (project_plan.md, sekcja 8)"
+    edge_case: "realna niejednoznaczność w danych WIiT — to samo imię I nazwisko, nie tylko nazwisko "
     source: *informator
-    # expected_calls note: Stops at get_staff on purpose — calling get_office_hour means picking one of two people, which scores as overcalling.
+    # expected_calls note: Stops at get_staff on purpose — calling get_office_hour means picking one of two people, which scores as extra_calls.
     expected_calls:
       - tool: get_staff
         args: {last_name: "Wojciechowski", first_name: "Paweł"}
@@ -409,7 +437,7 @@ konsultacje:
 # ---------------------------------------------------------------------------
 # Category 6 — poza_zakresem (questions no tool can answer)
 #
-# `expected_calls: []` is what exercises the no_call axis; these cases are its
+# `expected_calls: []` is what exercises the called_no_tools axis; these cases are its
 # core, and a few more live in other categories. Each baits a different tool, and
 # none carries a `source`: the right refusal follows from the system's own scope,
 # not from a document. Keep this category off the faculty/major axis — get_faculties and
@@ -439,7 +467,7 @@ poza_zakresem:
     expected_data: null
     expected_answer: "Nie obsługuję tego — logowanie do systemów uczelni i zgłoszenia informatyczne są poza zakresem bota. Żadnego numeru telefonu ani adresu podawać nie wolno."
     edge_case: "logowanie do systemów uczelni + prośba o numer telefonu, który bot MOŻE pobrać z bazy, ale nie dla tej sprawy"
-    notes: "Najgroźniejsza przynęta: departments ma telefony jednostek, więc get_department zwróci prawdziwy numer — tylko nie do tej sprawy. Faithfulness tego nie złapie (numer JEST w danych), łapie no_call/overcalling."
+    notes: "Najgroźniejsza przynęta: departments ma telefony jednostek, więc get_department zwróci prawdziwy numer — tylko nie do tej sprawy. Faithfulness tego nie złapie (numer JEST w danych), łapie called_no_tools/extra_calls."
     expected_calls: []
 
 # ---------------------------------------------------------------------------
@@ -520,7 +548,7 @@ pytania_po_angielsku:
     expected_data: null
     expected_answer: "Refusal in English: the bot covers admission thresholds, study plans, staff and units, and office hours at WIiT — not enrolment or Erasmus paperwork. No procedure, no office, no date."
     edge_case: "pytanie poza zakresem zadane po angielsku — odmowa BEZ odpytywania bazy, w jezyku pytania"
-    notes: "Mierzy dwie rzeczy naraz: no_call oraz to, ze odmowa trafia w jezyk pytania. Tresc rozna od przykladu P5 w SYSTEM_PROMPT (tam: stypendium socjalne)."
+    notes: "Mierzy dwie rzeczy naraz: called_no_tools oraz to, ze odmowa trafia w jezyk pytania. Tresc rozna od przykladu P5 w SYSTEM_PROMPT (tam: stypendium socjalne)."
     expected_calls: []
 
 # ---------------------------------------------------------------------------
@@ -535,7 +563,7 @@ pytania_po_angielsku:
 # watches the same reflex from the other side.
 #
 # case_kind() reports this as "refusal" because it has no expected_data — the
-# label is cosmetic, the scoring is no_call plus both judges.
+# label is cosmetic, the scoring is called_no_tools plus both judges.
 # ---------------------------------------------------------------------------
 powitanie_i_zakres:
   - id: powitanie-kim-jestes
