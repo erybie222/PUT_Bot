@@ -99,6 +99,28 @@ def get_department(cursor: DBCursor, name: str) -> dict | None:
     return department
 
 
+def delete_departments_not_seen_in_run(cursor: DBCursor) -> int:
+    """Delete the units the current ingestion run has not written, e.g. renamed or closed ones.
+
+    A row written in this run has ``last_updated`` equal to
+    ``CURRENT_TIMESTAMP``, which Postgres fixes at the start of the
+    transaction, so this only works while the whole run is one transaction.
+    Call it after ``delete_staff_not_seen_in_run``: staff who left may still
+    point at a removed unit (``staff.department`` is a foreign key).
+
+    Args:
+        cursor: Database cursor of the ingestion run.
+
+    Returns:
+        int: Number of units deleted.
+    """
+    cursor.execute("""
+        DELETE FROM departments
+        WHERE last_updated IS DISTINCT FROM CURRENT_TIMESTAMP;
+    """)
+    return cursor.rowcount
+
+
 def delete_departments(cursor: DBCursor) -> None:
     """Delete every unit (used by ``clean_db.py``).
 

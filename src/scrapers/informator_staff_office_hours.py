@@ -23,8 +23,8 @@ from psycopg import Cursor as DBCursor
 from requests.exceptions import RequestException
 
 from database.queries.office_hours import delete_office_hours_of_staff, insert_office_hour
-from database.queries.departments import upsert_department
-from database.queries.staff import upsert_staff
+from database.queries.departments import delete_departments_not_seen_in_run, upsert_department
+from database.queries.staff import count_staff_not_seen_in_run, delete_staff_not_seen_in_run, upsert_staff
 from database.queries.staff_functions import delete_staff_functions_of_staff, insert_staff_function
 
 BASE_URL = "https://informator.put.poznan.pl"
@@ -33,6 +33,9 @@ PAGE_SIZE = 100          # people per page when listing staff; the API's maximum
 REQUEST_DELAY_S = 0.2    # pause between per-person requests, to go easy on the server
 MAX_RETRIES = 3          # attempts per API call before giving up
 RETRY_BACKOFF_S = 2.0    # wait before the 2nd attempt; doubles before the 3rd
+# Above this share of stored staff missing from a run, nobody is deleted: more
+# likely an incomplete staff list from the API than that many people leaving.
+MAX_STAFF_REMOVAL_SHARE = 0.2
 
 # Informator gives weekdays in English; the database stores them in Polish.
 WEEKDAYS_PL = {
@@ -314,13 +317,39 @@ def sync_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url:
     return stored
 
 
+def remove_staff_and_units_not_seen(cursor: DBCursor) -> None:
+    """Delete staff and units that Informator no longer lists, e.g. people who left WIiT.
+
+    Runs only after the whole staff list was stored. If more than
+    ``MAX_STAFF_REMOVAL_SHARE`` of the stored staff would go, nothing is
+    deleted and a warning is printed; ``clean_db.py`` plus a full run is then
+    the way to accept the change.
+
+    Args:
+        cursor: Database cursor of the ingestion run (one transaction).
+    """
+    not_seen, total = count_staff_not_seen_in_run(cursor)
+    if total and not_seen / total > MAX_STAFF_REMOVAL_SHARE:
+        # Units are skipped too: staff kept here may still point at them.
+        print(
+            f"WARNING: {not_seen} of {total} stored staff members are missing from this run "
+            f"(over {MAX_STAFF_REMOVAL_SHARE:.0%}), so no staff or units were deleted."
+        )
+        return
+    staff_deleted = delete_staff_not_seen_in_run(cursor)
+    units_deleted = delete_departments_not_seen_in_run(cursor)
+    print(f"Removed {staff_deleted} staff members and {units_deleted} units no longer in Informator.")
+
+
 def ingest_informator(cursor: DBCursor) -> None:
     """Store WIiT's units, then every staff member with their functions and office hours.
 
     People without an e-mail or without a full name are skipped, because the
     e-mail is what identifies a person in the database. If one person's
     office hours fail to load, that is printed and the next person follows;
-    an expired session stops the whole step.
+    an expired session stops the whole step. Only when every person was
+    processed are staff and units that Informator no longer lists deleted
+    (see ``remove_staff_and_units_not_seen``).
 
     Args:
         cursor: Database cursor to run the SQL on (the caller commits).
@@ -413,5 +442,9 @@ def ingest_informator(cursor: DBCursor) -> None:
         f"\nInformator done: {processed} staff members stored "
         f"({skipped} skipped), {hours_total} office-hours slots, {functions_total} functions."
     )
+
+    # Reached only if the loop above finished: an exception (e.g. an expired
+    # session) leaves before this, so a partial run never deletes anyone.
+    remove_staff_and_units_not_seen(cursor)
 
 

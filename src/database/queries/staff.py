@@ -106,6 +106,50 @@ def get_staff(
     return [row_to_dict(columns, row) for row in cursor.fetchall()]
 
 
+def count_staff_not_seen_in_run(cursor: DBCursor) -> tuple[int, int]:
+    """Count the staff members the current ingestion run has not written.
+
+    A row written in this run has ``last_updated`` equal to
+    ``CURRENT_TIMESTAMP``, which Postgres fixes at the start of the
+    transaction. So this only works while the whole run is one transaction.
+
+    Args:
+        cursor: Database cursor of the ingestion run.
+
+    Returns:
+        tuple[int, int]: Staff members not written in this run, and all
+        staff members stored.
+    """
+    cursor.execute("""
+        SELECT COUNT(*) FILTER (WHERE last_updated IS DISTINCT FROM CURRENT_TIMESTAMP),
+               COUNT(*)
+        FROM staff;
+    """)
+    not_seen, total = cursor.fetchone()
+    return not_seen, total
+
+
+def delete_staff_not_seen_in_run(cursor: DBCursor) -> int:
+    """Delete the staff members the current ingestion run has not written.
+
+    Their office hours and functions go with them (``ON DELETE CASCADE``).
+    Call this only after the whole staff list was fetched: a run cut short
+    would delete everyone it did not reach. Like ``count_staff_not_seen_in_run``,
+    it relies on the whole run being one transaction.
+
+    Args:
+        cursor: Database cursor of the ingestion run.
+
+    Returns:
+        int: Number of staff members deleted.
+    """
+    cursor.execute("""
+        DELETE FROM staff
+        WHERE last_updated IS DISTINCT FROM CURRENT_TIMESTAMP;
+    """)
+    return cursor.rowcount
+
+
 def delete_staff(cursor: DBCursor) -> None:
     """Delete every staff member (used by ``clean_db.py``).
 

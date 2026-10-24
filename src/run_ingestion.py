@@ -11,6 +11,11 @@ Everything runs in one transaction that is committed at the end, so a crash
 leaves the database as it was. The one exception is step 4: it needs a
 browser cookie that often expires, so its failure is reported and skipped
 instead of undoing steps 1–3. Staff saved before the failure are kept.
+
+Do not commit partway through: step 4 deletes staff and units that this run
+did not write, and recognises them by a ``last_updated`` older than the
+transaction's start. A commit in between would make everything written
+before it look stale.
 """
 
 from database.queries.faculties import insert_wiit_faculty
