@@ -37,11 +37,15 @@ def upsert_course(
     assessment_type: str,
     source_url: str | None,
 ) -> None:
-    """Insert a course, or update it if a course with this code is already stored.
+    """Insert a course, or update it if the major already has this code in this semester.
+
+    A course is one row of a major's catalog: the same code can be listed on
+    several majors' pages (e.g. PE electives) and in more than one semester,
+    and each listing is stored as its own row.
 
     Args:
         cursor: Database cursor to run the SQL on.
-        code: Course code from the catalog; it identifies the course.
+        code: Course code from the catalog.
         major_id: Id of the major whose study plan the course belongs to.
         semester: Semester number, 1 to 8.
         name: Course name.
@@ -60,9 +64,8 @@ def upsert_course(
         (course_code, major_id, semester, name, is_obligatory, is_english, ects,
          hours_lecture, hours_classes, hours_lab, hours_project, assessment_type, source_url)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ON CONFLICT (course_code)
+        ON CONFLICT (course_code, major_id, semester)
         DO UPDATE SET
-            semester = EXCLUDED.semester,
             name = EXCLUDED.name,
             is_obligatory = EXCLUDED.is_obligatory,
             is_english = EXCLUDED.is_english,

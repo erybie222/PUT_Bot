@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS admission_thresholds (
 );
 
 CREATE TABLE IF NOT EXISTS courses (
-    course_code VARCHAR(50) PRIMARY KEY,
+    course_code VARCHAR(50) NOT NULL,
     major_id INT NOT NULL CONSTRAINT fk_course_major REFERENCES majors(id) ON DELETE CASCADE,
     semester INT NOT NULL CHECK (semester BETWEEN 1 AND 8),
     name VARCHAR(200) NOT NULL,
@@ -44,7 +44,10 @@ CREATE TABLE IF NOT EXISTS courses (
     hours_project INT NOT NULL DEFAULT 0,
     assessment_type VARCHAR(50),
     source_url TEXT,
-    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+    last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- One row per catalog row: the same code (e.g. a PE elective) is listed on every
+    -- major's page, and some electives in more than one semester.
+    CONSTRAINT pk_courses PRIMARY KEY (course_code, major_id, semester)
 );
 
 CREATE TABLE IF NOT EXISTS departments (
