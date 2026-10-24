@@ -8,9 +8,10 @@ Steps, in order (later steps depend on earlier ones):
 4. faculty units, staff, their functions and office hours from Informator.
 
 Everything runs in one transaction that is committed at the end, so a crash
-leaves the database as it was. The one exception is step 4: it needs a
-browser cookie that often expires, so its failure is reported and skipped
-instead of undoing steps 1–3. Staff saved before the failure are kept.
+leaves the database as it was. Two steps are exceptions, reported and skipped
+instead of undoing the rest: step 3 when the PDF is missing or not laid out as
+expected, and step 4, which needs a browser cookie that often expires (staff
+saved before the failure are kept).
 
 Do not commit partway through: step 4 deletes staff and units that this run
 did not write, and recognises them by a ``last_updated`` older than the
@@ -23,16 +24,32 @@ from database.queries.majors import upsert_major
 from database.connection import get_db_connection, close_pool
 from scrapers.html_ects import ingest_ects_catalog
 from scrapers.informator_staff_office_hours import ingest_informator
-from scrapers.pdf_thresholds import ingest_thresholds_pdf
-from datetime import datetime
+from scrapers.pdf_thresholds import ThresholdsPdfError, find_thresholds_pdf, ingest_thresholds_pdf
+from datetime import date
 
-CURRENT_YEAR = int(datetime.now().year)
+# Exactly one file must match. Its years are read from the table header, so
+# replacing it with a newer PDF (keeping this name prefix) needs no code change.
+THRESHOLDS_PDF_PATTERN = "data/progi punktowe *.pdf"
+# The Polish academic year starts on 1 October.
+ACADEMIC_YEAR_START_MONTH = 10
 
-# The PDF covers the five previous recruitment years; YEAR_COLUMNS in
-# scrapers/pdf_thresholds.py must list the same years.
-THRESHOLDS_PDF_PATH = f"data/progi punktowe {CURRENT_YEAR - 1}-{CURRENT_YEAR - 5}.pdf"
-# ECTS catalogs are published per academic year, e.g. .../2026_2027.
-BASE_ECTS_URL = f"https://put.poznan.pl/karty-ects/{CURRENT_YEAR}_{CURRENT_YEAR + 1}"
+
+def academic_year_start(today: date) -> int:
+    """Return the calendar year in which the academic year in progress began.
+
+    Args:
+        today: The date to check.
+
+    Returns:
+        int: E.g. 2026 for both 2026-10-24 and 2027-03-01 (academic year 2026/2027).
+    """
+    return today.year if today.month >= ACADEMIC_YEAR_START_MONTH else today.year - 1
+
+
+ACADEMIC_YEAR = academic_year_start(date.today())
+# ECTS catalogs are published per academic year, e.g. .../2026_2027; the one of
+# the year in progress always exists, the next one may not be published yet.
+BASE_ECTS_URL = f"https://put.poznan.pl/karty-ects/{ACADEMIC_YEAR}_{ACADEMIC_YEAR + 1}"
 # Last part of every catalog URL: full-time ("stacjonarne") first-cycle studies.
 STUDY_PATH = "stacjonarne/studia%20pierwszego%20stopnia"
 
@@ -102,8 +119,13 @@ def main() -> None:
                 major_catalog_url = f"{BASE_ECTS_URL}/{normalized_major_name}/{STUDY_PATH}"
                 ingest_ects_catalog(cursor, major_catalog_url, major_id=major_id)
 
-            # Needs the majors above: rows are matched to them by name.
-            ingest_thresholds_pdf(cursor, THRESHOLDS_PDF_PATH)
+            # Needs the majors above: rows are matched to them by name. A missing
+            # or unexpected PDF skips this step; stored thresholds stay, as
+            # past thresholds remain true.
+            try:
+                ingest_thresholds_pdf(cursor, find_thresholds_pdf(THRESHOLDS_PDF_PATTERN))
+            except ThresholdsPdfError as error:
+                print(f"Thresholds PDF skipped, stored thresholds kept: {error}")
 
 
             # Informator needs a manual browser cookie that often expires; a

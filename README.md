@@ -62,9 +62,10 @@ uv run src/run_ingestion.py
 This fills the database in a single transaction: majors and their ECTS courses, admission
 thresholds, then faculty units and staff from Informator. Before running it:
 
-- Put the thresholds PDF in `data/`. Its expected name is derived from the current year, e.g.
-  `data/progi punktowe 2025-2021.pdf` in 2026 (see `THRESHOLDS_PDF_PATH` in
-  `src/run_ingestion.py`).
+- Put the thresholds PDF in `data/`, named `progi punktowe <anything>.pdf` (e.g.
+  `progi punktowe 2025-2021.pdf`) — exactly one such file. The years are read from the table
+  header, so a newer PDF just replaces the old file. Without it the thresholds step is skipped
+  and everything else is still saved.
 - For staff data, set `INFORMATOR_SESSION` in `.env` — a session cookie copied from your
   browser (`.env.example` says how). Informator protects its data with a captcha, so the scraper
   cannot log in by itself, and the cookie expires after a while. Without a valid cookie the staff
