@@ -82,7 +82,8 @@ CREATE TABLE IF NOT EXISTS staff_functions (
     department_name VARCHAR(100),
     source_url TEXT,
     last_updated TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_staff_function UNIQUE (staff_id, function_name, department_name)
+    -- NULLS NOT DISTINCT: a function with no department_name is still a duplicate of itself.
+    CONSTRAINT uk_staff_function UNIQUE NULLS NOT DISTINCT (staff_id, function_name, department_name)
 );
 
 CREATE TABLE IF NOT EXISTS office_hours (

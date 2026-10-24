@@ -43,9 +43,8 @@ def insert_staff_function(
             linked to ``departments`` because it may be outside WIiT.
         source_url: Link to the person's Informator card.
     """
-    # DO NOTHING skips a function listed twice on the same card. Caveat:
-    # Postgres treats NULLs as distinct in UNIQUE, so a repeat with no
-    # department_name is still inserted twice.
+    # DO NOTHING skips a function listed twice on the same card, also one
+    # with no department_name (the constraint is NULLS NOT DISTINCT).
     cursor.execute("""
         INSERT INTO staff_functions
         (staff_id, function_name, department_name, source_url)
