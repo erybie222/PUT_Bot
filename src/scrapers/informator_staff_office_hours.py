@@ -25,7 +25,7 @@ from requests.exceptions import RequestException
 from database.queries.office_hours import delete_office_hours_of_staff, insert_office_hour
 from database.queries.departments import upsert_department
 from database.queries.staff import upsert_staff
-from database.queries.staff_functions import insert_staff_function
+from database.queries.staff_functions import delete_staff_functions_of_staff, insert_staff_function
 
 BASE_URL = "https://informator.put.poznan.pl"
 FACULTY_SYMBOL = "WIiT"
@@ -278,11 +278,12 @@ def sync_office_hours(cursor: DBCursor, session: Session, staff_id: int, uuid: s
     return stored
 
 
-def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url: str) -> int:
-    """Store one person's administrative functions, e.g. "Dyrektor instytutu".
+def sync_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url: str) -> int:
+    """Make the database hold exactly the administrative functions on one person's card.
 
-    Functions are only added, never removed, so a function the person no
-    longer holds stays in the database until it is emptied with ``clean_db.py``.
+    The person's stored functions (e.g. "Dyrektor instytutu") are deleted and
+    the current ones inserted, so a function the person no longer holds
+    disappears here too.
 
     Args:
         cursor: Database cursor to run the SQL on.
@@ -294,6 +295,7 @@ def store_functions(cursor: DBCursor, staff_id: int, functions: dict, source_url
     Returns:
         int: Number of functions stored.
     """
+    delete_staff_functions_of_staff(cursor, staff_id)
     stored = 0
     for function in (functions or {}).values():
         name = ((function.get("name") or {}).get("pl") or "").strip()
@@ -393,7 +395,7 @@ def ingest_informator(cursor: DBCursor) -> None:
             source_url=source_url,
         )
 
-        functions_total += store_functions(cursor, staff_id, employment.get("functions", {}) or {}, source_url)
+        functions_total += sync_functions(cursor, staff_id, employment.get("functions", {}) or {}, source_url)
 
         try:
             hours = sync_office_hours(cursor, session, staff_id, item["uuid"], source_url)

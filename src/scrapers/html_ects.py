@@ -17,7 +17,7 @@ from bs4 import BeautifulSoup
 import re
 
 from psycopg import Cursor as DBCursor
-from database.queries.courses import upsert_course
+from database.queries.courses import delete_courses_of_major, upsert_course
 
 
 def parse_hours(hours_str: str) -> tuple[int, bool]:
@@ -45,10 +45,13 @@ def parse_hours(hours_str: str) -> tuple[int, bool]:
 
 
 def ingest_ects_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
-    """Download one major's catalog page and store every course on it.
+    """Make the database hold exactly the courses on one major's catalog page.
 
-    If the page cannot be downloaded, the error is printed and the major is
-    skipped; the rest of the ingestion continues.
+    The major's stored courses are deleted and the ones on the page stored,
+    so courses dropped from the catalog disappear here too. If the page
+    cannot be downloaded, or yields no courses (more likely a layout change
+    than an empty catalog), the stored courses are kept, a warning is
+    printed and the rest of the ingestion continues.
 
     Args:
         cursor: Database cursor to run the SQL on.
@@ -61,10 +64,14 @@ def ingest_ects_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
         response = requests.get(url)
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
-        print(f"Error fetching the catalog: {e}")
+        print(f"Error fetching the catalog, keeping stored courses: {e}")
         return
 
     soup = BeautifulSoup(response.text, 'html.parser')
+
+    # Parsed first and stored only at the end, so a page that yields nothing
+    # never wipes the major's courses.
+    courses: list[dict] = []
 
     # Find all h3 headers (Obligatory / Elective subjects)
     sections = soup.find_all('h3')
@@ -152,13 +159,10 @@ def ingest_ects_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
                 if pdf_link.startswith('/'):
                     pdf_link = f"https://put.poznan.pl{pdf_link}"
 
-            print(f"Upserting -> [{subject_code}] {subject_name} (ECTS: {ects})")
+            print(f"Parsed -> [{subject_code}] {subject_name} (ECTS: {ects})")
 
-            # Push the data to PostgreSQL
-            upsert_course(
-                cursor=cursor,
+            courses.append(dict(
                 code=subject_code,
-                major_id=major_id,
                 semester=semester,
                 name=subject_name,
                 is_obligatory=is_obligatory,
@@ -169,7 +173,15 @@ def ingest_ects_catalog(cursor: DBCursor, url: str, major_id: int) -> None:
                 hours_lab=lab_hours,
                 hours_project=project_hours,
                 assessment_type=assessment_type,
-                source_url=pdf_link
-            )
+                source_url=pdf_link,
+            ))
 
-    print("\nCatalog processing complete.")
+    if not courses:
+        print("\nWARNING: no courses found on the page (layout change?), keeping stored courses.")
+        return
+
+    delete_courses_of_major(cursor, major_id)
+    for course in courses:
+        upsert_course(cursor=cursor, major_id=major_id, **course)
+
+    print(f"\nCatalog processing complete: {len(courses)} course rows parsed.")

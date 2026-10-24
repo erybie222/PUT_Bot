@@ -10,6 +10,22 @@ from psycopg import Cursor as DBCursor
 from database.serialization import row_to_dict
 
 
+def delete_staff_functions_of_staff(cursor: DBCursor, staff_id: int) -> None:
+    """Delete all functions of one person.
+
+    Ingestion calls this before inserting the person's current functions, so
+    the database always holds exactly what Informator shows now.
+
+    Args:
+        cursor: Database cursor to run the SQL on.
+        staff_id: Id of the person.
+    """
+    cursor.execute("""
+        DELETE FROM staff_functions
+        WHERE staff_id = %s;
+    """, (staff_id,))
+
+
 def insert_staff_function(
     cursor: DBCursor,
     staff_id: int,
@@ -19,9 +35,6 @@ def insert_staff_function(
 ) -> None:
     """Store one function held by one person; does nothing if it is already stored.
 
-    Functions are only ever added, never updated or removed, so ingestion is
-    meant to run on an emptied database (see ``clean_db.py``).
-
     Args:
         cursor: Database cursor to run the SQL on.
         staff_id: Id of the person.
@@ -30,9 +43,9 @@ def insert_staff_function(
             linked to ``departments`` because it may be outside WIiT.
         source_url: Link to the person's Informator card.
     """
-    # DO NOTHING keeps re-runs from duplicating a known function. Caveat:
-    # Postgres treats NULLs as distinct in UNIQUE, so a function with no
-    # department_name is inserted again on every run.
+    # DO NOTHING skips a function listed twice on the same card. Caveat:
+    # Postgres treats NULLs as distinct in UNIQUE, so a repeat with no
+    # department_name is still inserted twice.
     cursor.execute("""
         INSERT INTO staff_functions
         (staff_id, function_name, department_name, source_url)

@@ -5,6 +5,22 @@ from psycopg import Cursor as DBCursor
 from database.serialization import row_to_dict
 
 
+def delete_courses_of_major(cursor: DBCursor, major_id: int) -> None:
+    """Delete all courses of one major.
+
+    Ingestion calls this before storing the major's current catalog, so
+    courses dropped from the catalog also disappear here.
+
+    Args:
+        cursor: Database cursor to run the SQL on.
+        major_id: Id of the major.
+    """
+    cursor.execute("""
+        DELETE FROM courses
+        WHERE major_id = %s;
+    """, (major_id,))
+
+
 def upsert_course(
     cursor: DBCursor,
     code: str,
