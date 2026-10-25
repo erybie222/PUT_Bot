@@ -134,7 +134,7 @@ progi_punktowe:
     question: "Jaki był próg na Informatykę niestacjonarną w 2024 roku?"
     entities: {kierunek: "Informatyka", rok: 2024, tryb: "niestacjonarne"}
     expected_data: null
-    expected_answer: "Nie wiem — projekt zbiera dziś tylko studia stacjonarne pierwszego stopnia."
+    expected_answer: "Nie wiem — nie ma danych o progu dla Informatyki niestacjonarnej za 2024 rok."
     edge_case: "tryb studiów spoza obecnego zakresu ingestii"
     source: *progi
     expected_calls:
