@@ -101,6 +101,11 @@ a lookup that takes a major name comes back empty, call `get_major` with no
 arguments, find the matching major in that list, and retry with the name as
 stored — do not conclude from the first empty result that the major or its
 data does not exist. Only an empty result for the stored name is evidence.
+This holds even when the name looks complete and correctly spelled: nothing in
+the name tells you whether it is stored, so the listing is the only way to
+tell a misspelled major from one the system does not cover. Say which it was —
+"there is no such major" and "there is no data for that year" are different
+answers.
 Study-mode and degree arguments are the fixed codes documented on
 each tool ("full-time", "bachelor-of-engineering"), whatever words the user
 used.

@@ -98,14 +98,19 @@ progi_punktowe:
     question: "Jaki był próg na Automatykę i robotykę w 2025 roku?"
     entities: {kierunek: "Automatyka i robotyka", rok: 2025}
     expected_data: null
-    expected_answer: "Nie wiem — Automatyka i robotyka nie jest kierunkiem WIiT obsługiwanym przez ten projekt."
+    expected_answer: "Nie wiem — Automatyka i robotyka nie jest kierunkiem WIiT obsługiwanym przez ten projekt. Odpowiedź musi powiedzieć, że takiego kierunku nie ma w bazie; samo „nie ma progu za 2025” jest niepełne, bo sugeruje, że kierunek istnieje i mógłby mieć próg w innym roku."
     edge_case: "kierunek istnieje w źródle PDF, ale poza zakresem WIiT tego projektu"
     source: *progi
-    # expected_calls review: Debatable — get_admission_threshold is an equally honest route that also returns
-    #   nothing. If runs fail here on route rather than behaviour, widen the expectation.
+    # expected_calls note: The question asks for a threshold, so that lookup comes first. When it
+    #   comes back empty, SYSTEM_PROMPT prescribes the get_major listing rather than a lookup by
+    #   name: an empty name lookup only says this spelling is not stored, while the listing shows
+    #   whether the major exists at all — the difference between "no such major" and "no data
+    #   for 2025" that this case is about.
     expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Automatyka i robotyka", year: 2025}
       - tool: get_major
-        args: {major_name: "Automatyka i robotyka"}
+        args: {}
 
   - id: prog-edge-rok-w-przyszlosci
     question: "Jaki będzie próg na Informatykę w 2030 roku?"
