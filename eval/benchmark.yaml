@@ -287,12 +287,16 @@ kierunki:
     question: "Czy WIiT prowadzi kierunek 'Informatyka i ekonometria'?"
     entities: {kierunek: "Informatyka i ekonometria"}
     expected_data: null
-    expected_answer: "Nie wiem — taki kierunek nie jest w bazie tego projektu."
+    expected_answer: "Nie wiem — kierunku „Informatyka i ekonometria” nie ma w danych tego projektu. Odpowiedź nie może stwierdzić, że WIiT go nie prowadzi: baza obejmuje tylko część oferty wydziału."
     edge_case: "nieistniejący/nieobsługiwany kierunek — bot nie może potwierdzić czegoś, czego nie ingestuje"
     source: *kierunki
+    # expected_calls note: The get_major listing, as SYSTEM_PROMPT prescribes after an empty major
+    #   lookup and as prog-edge-kierunek-poza-zakresem expects. A lookup by name before it is
+    #   tolerated (counted in extra_calls), not required: an empty one only says this spelling is
+    #   not stored.
     expected_calls:
       - tool: get_major
-        args: {major_name: "Informatyka i ekonometria"}
+        args: {}
 
 # ---------------------------------------------------------------------------
 # Category 4 — kadra_i_jednostki (staff, staff_functions, departments)
