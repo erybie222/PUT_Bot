@@ -35,11 +35,13 @@ from database.queries.staff_functions import get_staff_function as _get_staff_fu
 
 @tool(parse_docstring=True, response_format="content_and_artifact")
 def get_faculties() -> tuple[str, list[dict]]:
-    """List every faculty (wydział) this system currently has data for.
+    """List the faculties (wydziały) the database has data for: symbol and full name.
 
-    Call this to check the system's own scope before answering a question
-    about a faculty. If the one asked about isn't in the result, say you
-    don't cover it instead of guessing.
+    Call this only when the question is about the faculties themselves, e.g.
+    which faculties you have data for, or faculty's full name. It is not a scope
+    check: a greeting, a question about what you can do, and a question about
+    another faculty, another university or a topic no tool covers are all
+    answered without calling any tool.
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:

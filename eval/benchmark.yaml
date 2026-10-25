@@ -440,9 +440,10 @@ konsultacje:
 # `expected_calls: []` is what exercises the called_no_tools axis; these cases are its
 # core, and a few more live in other categories. Each baits a different tool, and
 # none carries a `source`: the right refusal follows from the system's own scope,
-# not from a document. Keep this category off the faculty/major axis — get_faculties and
-# get_major exist to let the agent check its scope, and
-# prog-edge-kierunek-poza-zakresem expects that.
+# not from a document. Keep this category off the major axis — get_major is how the
+# agent checks which majors exist, and prog-edge-kierunek-poza-zakresem expects that
+# call. get_faculties is not a scope check either: it answers questions about
+# the faculties themselves (category wydzialy), not whether a topic is covered.
 # ---------------------------------------------------------------------------
 poza_zakresem:
   - id: poza-zakresem-zapisy-na-obieralne
@@ -557,10 +558,10 @@ pytania_po_angielsku:
 # Not an out-of-scope question — the bot answers this one. It is the only case
 # about WIiTek rather than about WIiT, so nothing in the database can answer it
 # and the correct reaction is a short self-introduction with no tool call
-# (SYSTEM_PROMPT, example P8). The bait is get_faculties, whose own docstring
-# tells the agent to check the system's scope before answering; that pull
-# already produced a stray call on en-poza-zakresem-erasmus, so this case
-# watches the same reflex from the other side.
+# (SYSTEM_PROMPT, example P8). The bait is get_faculties: its docstring used to
+# tell the agent to check the system's scope before answering, which produced a
+# stray call on en-poza-zakresem-erasmus. The docstring now rules that out; this
+# case and that one show whether the reflex is gone.
 #
 # case_kind() reports this as "refusal" because it has no expected_data — the
 # label is cosmetic, the scoring is called_no_tools plus both judges.
@@ -573,3 +574,35 @@ powitanie_i_zakres:
     edge_case: "pytanie o samego bota — jedyny przypadek, w którym poprawna odpowiedź nie pochodzi z bazy"
     notes: "Mierzy reguly tonu z SYSTEM_PROMPT (P8): autoprezentacja, zwiezlosc, zero wywolan. Zmyslenie zakresu jest tu realnym ryzykiem — obietnica planu zajec to dla uzytkownika gorsze niz odmowa."
     expected_calls: []
+
+# ---------------------------------------------------------------------------
+# Category 9 — wydzialy (faculties)
+#
+# The only cases where get_faculties is the right call. They pair with the
+# no-tool cases above: get_faculties' docstring was narrowed so it stops being
+# called as a scope check, and these show the narrowing did not also stop it
+# being called when the question really is about the faculties.
+# ---------------------------------------------------------------------------
+wydzialy:
+  - id: wydzial-pelna-nazwa-wiit
+    question: "Jak brzmi pełna nazwa wydziału WIiT?"
+    entities: {wydzial: "WIiT"}
+    expected_data: {symbol: "WIiT", name: "Wydział Informatyki i Telekomunikacji"}
+    expected_answer: "Wydział Informatyki i Telekomunikacji."
+    notes: "Pokusa: model zna te nazwe z pretreningu i moze odpowiedziec bez wywolania — trafna odpowiedz bez zapytania to wciaz blad trasy."
+    source: *informator
+    expected_calls:
+      - tool: get_faculties
+        args: {}
+
+  - id: wydzial-lista-obslugiwanych
+    question: "Dla jakich wydziałów masz dane?"
+    expected_data:
+      faculties: [{symbol: "WIiT", name: "Wydział Informatyki i Telekomunikacji"}]
+    expected_answer: "Tylko dla jednego: WIiT — Wydział Informatyki i Telekomunikacji."
+    edge_case: "pytanie o zakres bota zadane wprost o wydzialy — w odróżnieniu od powitanie-kim-jestes tu odpowiedz pochodzi z bazy"
+    notes: "Odpowiedz nie moze dopisac innych wydzialow PP, ktore model zna z pretreningu."
+    source: *informator
+    expected_calls:
+      - tool: get_faculties
+        args: {}
