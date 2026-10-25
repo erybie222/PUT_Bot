@@ -38,7 +38,7 @@
 # would delete every comment and the &anchors / *references below.
 
 meta:
-  last_verified: "2026-09-12"
+  last_verified: "2026-10-25"
   sources:
     progi: &progi "data/progi punktowe 2025-2021.pdf"
     przedmioty: &przedmioty "https://put.poznan.pl/karty-ects/2026_2027/Informatyka/stacjonarne/studia%20pierwszego%20stopnia"
@@ -314,37 +314,40 @@ kadra_i_jednostki:
       - tool: get_department
         args: {name: "Zakład Uczenia Maszynowego"}
 
+  # The next three cases were about Instytut Radiokomunikacji until 2026-10-25, when
+  # Informator showed it restructured: it is now Zakład Radiokomunikacji under the new
+  # Instytut Teleinformatyki, whose director is the former institute's director.
   - id: dept-parent-null-instytut
-    question: "Czy Instytut Radiokomunikacji ma jednostkę nadrzędną inną niż sam Wydział?"
-    entities: {jednostka: "Instytut Radiokomunikacji"}
+    question: "Czy Instytut Teleinformatyki ma jednostkę nadrzędną inną niż sam Wydział?"
+    entities: {jednostka: "Instytut Teleinformatyki"}
     expected_data: {parent: null}
     expected_answer: "Nie — leży bezpośrednio pod WIiT, tak jak wszystkie instytuty i dziekanat WIiT."
     source: *informator
     expected_calls:
       - tool: get_department
-        args: {name: "Instytut Radiokomunikacji"}
+        args: {name: "Instytut Teleinformatyki"}
 
   - id: dept-edge-brak-podjednostek
-    question: "Jakie zakłady wchodzą w skład Instytutu Radiokomunikacji?"
-    entities: {jednostka: "Instytut Radiokomunikacji"}
+    question: "Jakie zakłady wchodzą w skład Instytutu Telekomunikacji Multimedialnej?"
+    entities: {jednostka: "Instytut Telekomunikacji Multimedialnej"}
     expected_data: {children: []}
-    expected_answer: "Żadne — według aktualnego drzewa organizacyjnego Informatora Instytut Radiokomunikacji nie ma podległych zakładów w WIiT (w przeciwieństwie do Instytutu Informatyki)."
+    expected_answer: "Żadne — według aktualnego drzewa organizacyjnego Informatora Instytut Telekomunikacji Multimedialnej nie ma podległych zakładów w WIiT."
     edge_case: "pusta lista podjednostek — nie mylić z brakiem danych"
     source: *informator
     expected_calls:
       - tool: get_department
-        args: {name: "Instytut Radiokomunikacji"}
+        args: {name: "Instytut Telekomunikacji Multimedialnej"}
 
   - id: staff-dyrektor-instytutu
-    question: "Kto jest dyrektorem Instytutu Radiokomunikacji?"
-    entities: {jednostka: "Instytut Radiokomunikacji", funkcja: "Dyrektor instytutu"}
+    question: "Kto jest dyrektorem Instytutu Teleinformatyki?"
+    entities: {jednostka: "Instytut Teleinformatyki", funkcja: "Dyrektor instytutu"}
     expected_data: {first_name: "Hanna", last_name: "Bogucka", academic_title: "prof. dr hab. inż.", position: "Profesor", function_name: "Dyrektor instytutu"}
     expected_answer: "prof. dr hab. inż. Hanna Bogucka."
     notes: "staff_functions ('Dyrektor instytutu') jest odrębne od staff.position ('Profesor') — dobry test, że bot nie miesza tych dwóch pól."
     source: *informator
     expected_calls:
       - tool: get_staff_function
-        args: {function_name: "Dyrektor instytutu", department_name: "Instytut Radiokomunikacji"}
+        args: {function_name: "Dyrektor instytutu", department_name: "Instytut Teleinformatyki"}
 
   - id: staff-administracyjny-dziekanat
     question: "Jakie stanowisko ma mgr Beata Banaszak i w jakiej jednostce pracuje?"
