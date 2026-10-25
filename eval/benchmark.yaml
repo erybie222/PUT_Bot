@@ -11,7 +11,12 @@
 #   id                 unique name, e.g. for `--only <id>`
 #   question           what the agent is asked
 #   expected_answer    the correct answer in words; the correctness judge
-#                      compares the agent's answer with it
+#                      compares the agent's answer with it. Only what the
+#                      question asks, plus the fields SYSTEM_PROMPT says
+#                      always belong in an answer (a threshold's capacity, a
+#                      course's ECTS and assessment_type, an office hour's
+#                      location and comment). Anything more marks a complete
+#                      answer as incomplete.
 #   expected_data      the key facts the answer must contain (null when the
 #                      right answer is "there is no such data")
 #   expected_behavior  instead of an answer: what the agent should do, e.g.
@@ -86,7 +91,7 @@ progi_punktowe:
     question: "Jaki był próg na Cyberbezpieczeństwo w 2022 roku?"
     entities: {kierunek: "Cyberbezpieczeństwo", rok: 2022}
     expected_data: null
-    expected_answer: "Nie wiem — kierunek Cyberbezpieczeństwo nie istniał / nie ma danych o progu za 2022 rok w źródle."
+    expected_answer: "Nie wiem — nie ma danych o progu na Cyberbezpieczeństwo za 2022 rok w źródle."
     edge_case: "rok bez danych (kierunek za młody), nie wolno ekstrapolować"
     source: *progi
     # expected_calls note: Must query and get nothing back — refusing without checking is the failure this catches.
@@ -144,7 +149,7 @@ plany_studiow:
     question: "W którym semestrze na Informatyce jest 'Algebra liniowa' i ile ma ECTS?"
     entities: {kierunek: "Informatyka", przedmiot: "Algebra liniowa"}
     expected_data: {semester: 1, ects: 2, is_obligatory: true, hours_lecture: 16, hours_classes: 16, assessment_type: "Zaliczenie z ocena"}
-    expected_answer: "Semestr 1, przedmiot obowiązkowy, 2 ECTS (16h wykładu, 16h ćwiczeń), zaliczenie na ocenę (bez egzaminu)."
+    expected_answer: "Semestr 1, 2 ECTS, zaliczenie na ocenę (bez egzaminu)."
     source: *przedmioty
     expected_calls:
       - tool: get_course
@@ -154,7 +159,7 @@ plany_studiow:
     question: "Czy 'Analiza matematyczna' na Informatyce kończy się egzaminem i ile ma ECTS?"
     entities: {kierunek: "Informatyka", przedmiot: "Analiza matematyczna"}
     expected_data: {semester: 1, ects: 6, is_obligatory: true, hours_lecture: 30, hours_classes: 30, assessment_type: "Egzamin"}
-    expected_answer: "Tak, egzamin. Semestr 1, obowiązkowy, 6 ECTS (30h wykładu, 30h ćwiczeń)."
+    expected_answer: "Tak, egzamin. 6 ECTS."
     notes: "assessment_type w bazie to dosłownie string 'Egzamin' wykryty po markerze (E) w komórce godzin wykładowych."
     source: *przedmioty
     expected_calls:
@@ -165,7 +170,7 @@ plany_studiow:
     question: "Ile ECTS ma 'Systemy operacyjne' na Informatyce i czy to egzamin?"
     entities: {kierunek: "Informatyka", przedmiot: "Systemy operacyjne"}
     expected_data: {semester: 2, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
-    expected_answer: "5 ECTS, semestr 2, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
+    expected_answer: "5 ECTS, egzamin."
     source: *przedmioty
     expected_calls:
       - tool: get_course
@@ -175,7 +180,7 @@ plany_studiow:
     question: "Czy 'Podstawy programowania - Python' jest obowiązkowe na pierwszym semestrze Informatyki?"
     entities: {kierunek: "Informatyka", przedmiot: "Podstawy programowania - Python", semestr: 1}
     expected_data: {semester: 1, ects: 4, is_obligatory: false, hours_lecture: 24, hours_lab: 30}
-    expected_answer: "Nie, to przedmiot obieralny (do wyboru) w grupie wprowadzającej do programowania, 4 ECTS."
+    expected_answer: "Nie, to przedmiot obieralny (do wyboru), 4 ECTS."
     source: *przedmioty
     expected_calls:
       - tool: get_course
@@ -209,7 +214,7 @@ plany_studiow:
     question: "Ile ECTS ma 'Wprowadzenie do programowania' na Cyberbezpieczeństwie i czy to egzamin?"
     entities: {kierunek: "Cyberbezpieczeństwo", przedmiot: "Wprowadzenie do programowania"}
     expected_data: {semester: 1, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
-    expected_answer: "5 ECTS, semestr 1, obowiązkowy, egzamin (30h wykładu, 30h laboratorium)."
+    expected_answer: "5 ECTS, egzamin."
     source: *przedmioty_cyber
     expected_calls:
       - tool: get_course
@@ -219,7 +224,7 @@ plany_studiow:
     question: "Ile godzin projektu ma 'Wstęp do cyberbezpieczeństwa' i ile to ECTS?"
     entities: {kierunek: "Cyberbezpieczeństwo", przedmiot: "Wstęp do cyberbezpieczeństwa"}
     expected_data: {semester: 1, ects: 4, is_obligatory: true, hours_lecture: 30, hours_project: 30, assessment_type: "Zaliczenie z ocena"}
-    expected_answer: "30h projektu, 4 ECTS, semestr 1, obowiązkowy, bez egzaminu (zaliczenie na ocenę)."
+    expected_answer: "30h projektu, 4 ECTS, bez egzaminu (zaliczenie na ocenę)."
     notes: "Przykład kursu z niezerowymi hours_project — pozostałe przykłady w tym pliku mają P=0."
     source: *przedmioty_cyber
     expected_calls:
@@ -232,7 +237,7 @@ plany_studiow:
     expected_data:
       Cyberbezpieczeństwo: {course_code: "S1Cybez1>ALIN", ects: 5, assessment_type: "Egzamin", hours_lecture: 30, hours_classes: 30}
       Informatyka: {course_code: "S1Inf1>ALIN", ects: 2, assessment_type: "Zaliczenie z ocena", hours_lecture: 16, hours_classes: 16}
-    expected_answer: "To dwa różne przedmioty mimo tej samej nazwy: na Cyberbezpieczeństwie 5 ECTS z egzaminem (30h/30h), na Informatyce 2 ECTS bez egzaminu (16h/16h)."
+    expected_answer: "To dwa różne przedmioty mimo tej samej nazwy: na Cyberbezpieczeństwie 5 ECTS z egzaminem, na Informatyce 2 ECTS bez egzaminu."
     edge_case: "ten sam `name`, różny `course_code` i różna treść w zależności od kierunku — test na to, że bot dopytuje/rozróżnia po kierunku, a nie dopasowuje tylko po nazwie przedmiotu"
     source: *przedmioty_cyber
     # expected_calls note: The answer needs both majors, so stopping at one call is a genuine miss.
@@ -250,7 +255,7 @@ kierunki:
     question: "Jakie kierunki I stopnia stacjonarne (obsługiwane przez tego bota) prowadzi WIiT?"
     expected_data:
       majors: ["Informatyka", "Bioinformatyka", "Teleinformatyka", "Cyberbezpieczeństwo", "Mikroelektronika i komunikacja cyfrowa", "Sztuczna inteligencja"]
-    expected_answer: "Informatyka, Bioinformatyka, Teleinformatyka, Cyberbezpieczeństwo, Mikroelektronika i komunikacja cyfrowa, Sztuczna inteligencja (ta ostatnia ma też tor anglojęzyczny: Artificial Intelligence)."
+    expected_answer: "Informatyka, Bioinformatyka, Teleinformatyka, Cyberbezpieczeństwo, Mikroelektronika i komunikacja cyfrowa, Sztuczna inteligencja."
     notes: "To lista tego, co faktycznie jest w WIIT_MAJORS_*, nie pełna oferta WIiT — dobry test, żeby bot nie 'dopowiadał' kierunków spoza swojego zakresu."
     source: *kierunki
     # expected_calls note: get_major with no arguments is the only way to enumerate majors.
@@ -262,7 +267,7 @@ kierunki:
     question: "Czy Sztuczna inteligencja jest kierunkiem anglojęzycznym?"
     entities: {kierunek: "Sztuczna inteligencja"}
     expected_data: {is_english: true, degree: "bachelor-of-engineering", study_mode: "full-time"}
-    expected_answer: "Tak — to jedyny w pełni anglojęzyczny (is_english=true) kierunek I stopnia w tym projekcie."
+    expected_answer: "Tak — Sztuczna inteligencja jest kierunkiem anglojęzycznym (is_english=true)."
     source: *kierunki
     expected_calls:
       - tool: get_major
@@ -272,7 +277,7 @@ kierunki:
     question: "Jaki tryb studiów jest ingestowany dla Teleinformatyki — stacjonarny czy niestacjonarny?"
     entities: {kierunek: "Teleinformatyka"}
     expected_data: {study_mode: "full-time"}
-    expected_answer: "Stacjonarny (`full-time`) — to jedyny tryb, jaki ten projekt dziś zbiera, dla wszystkich kierunków."
+    expected_answer: "Stacjonarny (`full-time`)."
     source: *kierunki
     expected_calls:
       - tool: get_major
@@ -321,7 +326,7 @@ kadra_i_jednostki:
     question: "Czy Instytut Teleinformatyki ma jednostkę nadrzędną inną niż sam Wydział?"
     entities: {jednostka: "Instytut Teleinformatyki"}
     expected_data: {parent: null}
-    expected_answer: "Nie — leży bezpośrednio pod WIiT, tak jak wszystkie instytuty i dziekanat WIiT."
+    expected_answer: "Nie — leży bezpośrednio pod WIiT."
     source: *informator
     expected_calls:
       - tool: get_department
@@ -353,7 +358,7 @@ kadra_i_jednostki:
     question: "Jakie stanowisko ma mgr Beata Banaszak i w jakiej jednostce pracuje?"
     entities: {imie: "Beata", nazwisko: "Banaszak"}
     expected_data: {position: "Specjalista ds. dydaktyki", department: "Dziekanat Wydziału Informatyki i Telekomunikacji", user_type: "employee_administrative"}
-    expected_answer: "Specjalista ds. dydaktyki, Dziekanat Wydziału Informatyki i Telekomunikacji — pracownik administracyjny, nie dydaktyczny."
+    expected_answer: "Specjalista ds. dydaktyki, Dziekanat Wydziału Informatyki i Telekomunikacji."
     source: *informator
     expected_calls:
       - tool: get_staff
@@ -506,7 +511,7 @@ pytania_po_angielsku:
   - id: en-przedmiot-ects-po-angielsku
     question: "How many ECTS is 'Wprowadzenie do programowania' on Cyberbezpieczenstwo, and does it end with an exam?"
     expected_data: {semester: 1, ects: 5, is_obligatory: true, hours_lecture: 30, hours_lab: 30, assessment_type: "Egzamin"}
-    expected_answer: "5 ECTS, semester 1, obligatory, ends with an exam, 30h of lectures and 30h of laboratory. English answer; the course name and the assessment_type value stay Polish."
+    expected_answer: "5 ECTS, ends with an exam. English answer; the course name and the assessment_type value stay Polish."
     notes: "Te same dane co przedmiot-wdp-cyberbezpieczenstwo-egzamin, inna mierzona rzecz: jezyk odpowiedzi. Nazwa kierunku bez polskich znakow, bo tak realnie pisza uzytkownicy."
     source: *przedmioty_cyber
     expected_calls:
