@@ -121,7 +121,9 @@ def get_course(
         course_name: Optional substring filter on course name (case- and diacritic-insensitive).
         semester: Optional filter on semester (1..8).
         is_obligatory: Optional filter: true for obligatory, false for elective.
+            Leave unset when asked whether a course is obligatory — read it from the result.
         is_english: Optional filter for English-taught courses.
+            Leave unset when asked whether a course is English-taught — read it from the result.
     """
     with get_db_connection() as conn:
         with conn.cursor() as cursor:

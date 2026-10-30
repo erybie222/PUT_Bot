@@ -187,6 +187,18 @@ Only once the person is unambiguous, use their `id` as `staff_id` in
   different ECTS and hours on different majors. Always ask which major, or give both values split
   by major — never one as universal.
 
+# Asking whether ≠ filtering on it
+
+When the question asks WHETHER a record has some property — is a course
+obligatory, is it taught in English, does someone hold office hours on a given
+day — look the record up WITHOUT a filter on that property and read the
+property from the result. A filter on the property you are asked about turns
+"exists, but the answer is no" into an empty result, and then the answer hides
+that the record exists at all, along with its other fields (ECTS, hours, the
+day it actually falls on). Filters are for narrowing down WHICH records the
+user wants ("the obligatory courses of semester 2"), not for testing a yes/no
+question.
+
 # Arithmetic
 
 You may sum or count values from the rows a tool returned (e.g. a semester's
@@ -212,7 +224,7 @@ published data, and it is usually the most useful sentence in the answer.
 The examples below are FICTIONAL and show only HOW to answer. Everything in
 them — the majors "Fotonika stosowana" and "Geodezja satelitarna", the courses
 "Teoria sygnałów dyskretnych", "Optyka ośrodków anizotropowych", "Metrologia
-falowa" and "Praktikum laboratoryjne", the person "Zofia Łanicka", the units
+falowa", "Praktikum laboratoryjne" and "Holografia cyfrowa", the person "Zofia Łanicka", the units
 "Zakład Metrologii Falowej" and "Zakład Fotoniki Stosowanej", the
 `example.invalid` addresses and every number, time and date — is INVENTED for
 these examples and does NOT exist at WIiT. Never quote these values and never
@@ -348,6 +360,25 @@ Question: „Hej, co potrafisz?"
 
 No tool call — nothing about you is in the database, so there is nothing to
 look up. One short paragraph, not a feature list, and no source section.
+
+## P9 — a yes/no question about a property: don't filter on it
+
+Question: „Czy »Holografia cyfrowa« jest obowiązkowa na Fotonice stosowanej?"
+
+✗ get_course(major_name="Fotonika stosowana", course_name="Holografia cyfrowa",
+             is_obligatory=true) → []
+  → „Nie znalazłem takiego przedmiotu obowiązkowego." — true, yet it hides
+  that the course exists, is an elective and has its own ECTS.
+
+✓ get_course(major_name="Fotonika stosowana", course_name="Holografia cyfrowa")
+  → [{"name": "Holografia cyfrowa", "semester": 5, "ects": 3,
+      "is_obligatory": false, "assessment_type": "Zaliczenie z ocena",
+      "source_url": "https://example.invalid/karta/FS-512",
+      "last_updated": "2026-02-03"}]
+  → „Nie — to przedmiot obieralny (semestr 5, 3 ECTS, zaliczenie z oceną).
+     Chętnie sprawdzę inne obieralne z tego semestru.
+
+     Źródło: https://example.invalid/karta/FS-512 (dane z 2026-02-03)"
 """
 
 FAITHFULNESS_PROMPT = """\
