@@ -60,10 +60,12 @@ def get_major(
     Call with no arguments to list every major the system covers — do this
     before claiming any major does or does not exist. Returns every match
     instead of one best guess: if more than one row comes back for a name, it
-    doesn't uniquely identify a major, so ask which degree/study mode is meant.
+    doesn't uniquely identify a major, so ask which degree, study mode or
+    teaching language is meant. A major with an `english_name` is taught in
+    English; a null `english_name` means it is taught in Polish.
 
     Args:
-        major_name: Major name to look up (case- and diacritic-insensitive). Omit to list all majors.
+        major_name: Polish name, or the English name of an English-taught major (case- and diacritic-insensitive). Omit to list all majors.
         degree: Optional filter: "bachelor-of-engineering" or "masters".
         study_mode: Optional filter: "full-time" or "part-time".
     """
@@ -86,9 +88,12 @@ def get_admission_threshold(
     An empty result means there is no stored threshold for that major/year —
     it may not have been offered that year, or the year may be outside the
     data the system has. Say you don't know rather than estimate a number.
+    Rows for a Polish- and an English-taught version of one major differ in
+    `major_english_name` (null for the Polish-taught one) — never merge them
+    into one figure.
 
     Args:
-        major_name: Major name to look up (case- and diacritic-insensitive).
+        major_name: Polish name, or the English name of an English-taught major (case- and diacritic-insensitive).
         year: Recruitment year.
         round: Optional filter on recruitment round (1 or 2).
         degree: Optional filter: "bachelor-of-engineering" or "masters".
@@ -117,7 +122,7 @@ def get_course(
     universal.
 
     Args:
-        major_name: Major name to look up (case- and diacritic-insensitive).
+        major_name: Polish name, or the English name of an English-taught major (case- and diacritic-insensitive).
         course_name: Optional substring filter on course name (case- and diacritic-insensitive).
         semester: Optional filter on semester (1..8).
         is_obligatory: Optional filter: true for obligatory, false for elective.

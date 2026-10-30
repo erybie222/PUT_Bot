@@ -132,14 +132,19 @@ def ingest_thresholds_pdf(cursor: DBCursor, file_path: str) -> None:
     print(f"Years in the PDF: {', '.join(str(year) for year in year_columns)}")
 
     for row in table[1:]:
-        raw_name = row[0]
-        clean_name = raw_name.split('/')[0].strip()
+        # An English-taught major is listed as "polska nazwa/English Name",
+        # often next to a Polish-taught row with the same Polish name; the two
+        # are different majors, told apart by the English name.
+        polish_part, _, english_part = row[0].partition('/')
+        clean_name = polish_part.strip()
+        english_name = english_part.strip() or None
 
-        print(f"\nProcessing: {clean_name.capitalize()}")
-        major_id = get_major_id(cursor, clean_name, 'bachelor-of-engineering', 'full-time')
+        label = f"{clean_name.capitalize()}{f' / {english_name}' if english_name else ''}"
+        print(f"\nProcessing: {label}")
+        major_id = get_major_id(cursor, clean_name, 'bachelor-of-engineering', 'full-time', english_name)
 
         if not major_id:
-            print(f"  -> Error: Could not resolve ID for {clean_name}")
+            print(f"  -> Error: Could not resolve ID for {label}")
             continue
 
         for year, (idx_capacity, idx_points) in year_columns.items():

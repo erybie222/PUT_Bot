@@ -266,8 +266,8 @@ kierunki:
   - id: kierunek-ai-jezyk
     question: "Czy Sztuczna inteligencja jest kierunkiem anglojęzycznym?"
     entities: {kierunek: "Sztuczna inteligencja"}
-    expected_data: {is_english: true, degree: "bachelor-of-engineering", study_mode: "full-time"}
-    expected_answer: "Tak — Sztuczna inteligencja jest kierunkiem anglojęzycznym (is_english=true)."
+    expected_data: {english_name: "Artificial Intelligence", degree: "bachelor-of-engineering", study_mode: "full-time"}
+    expected_answer: "Tak — Sztuczna inteligencja jest kierunkiem anglojęzycznym (ma angielską nazwę: Artificial Intelligence)."
     source: *kierunki
     expected_calls:
       - tool: get_major
@@ -504,9 +504,9 @@ poza_zakresem:
 pytania_po_angielsku:
   - id: en-kierunki-anglojezyczne
     question: "Which majors at WIiT are taught in English?"
-    expected_data: {name: "Sztuczna inteligencja", is_english: true}
-    expected_answer: "Sztuczna inteligencja — the only major with is_english=true. Answer in English, keeping the Polish name as stored."
-    notes: "Baza NIE zna nazwy 'Artificial Intelligence' — w majors jest tylko nazwa polska (run_ingestion.py:74), wiec poprawna odpowiedz nie moze jej podac."
+    expected_data: {polish_name: "Sztuczna inteligencja", english_name: "Artificial Intelligence"}
+    expected_answer: "Sztuczna inteligencja (Artificial Intelligence) — the only major with an english_name. Answer in English, keeping the Polish name as stored; giving the stored English name next to it is fine."
+    notes: "Angielska nazwa jest w bazie (majors.english_name), wiec odpowiedz moze ja podac — ale obok polskiej nazwy, nie zamiast niej."
     source: *kierunki
     expected_calls:
       - tool: get_major
@@ -538,28 +538,24 @@ pytania_po_angielsku:
     expected_data: null
     expected_answer: null
     expected_behavior: >
-      The agent must NOT conclude the major does not exist. No row is stored
-      under "Artificial Intelligence": run_ingestion.py upserts the Polish name
-      and uses the English one only to build the ECTS catalog URL, and
-      get_course joins on LOWER(m.name). The honest route is to try, get
-      nothing, enumerate with get_major(), match the user's English wording to
-      the stored major, and retry with that name — or ask the user if it cannot
-      be matched with confidence. Answer in English.
-    edge_case: "kierunek istnieje, ale pod inna nazwa niz podana przez uzytkownika — angielskiej nazwy nie ma w bazie"
+      The agent must NOT conclude the major does not exist, and must not ask
+      which major is meant. "Artificial Intelligence" is the stored English
+      name (majors.english_name) of the English-taught major, and every
+      major-name lookup accepts it, so get_course with the English name
+      returns the first-semester courses directly. Answer in English, keeping
+      the course names as stored.
+    edge_case: "kierunek nazwany po angielsku — baza zna te nazwe obok polskiej"
     notes: >
-      Luka jest w danych: angielskiej nazwy nie ma w majors, wiec jedynym
-      mostem miedzy pytaniem a baza jest lista z get_major() plus wnioskowanie
-      modelu. Zmierzone 2026-10-01: agent przechodzi ten przypadek — pomija
-      skazana na pustke probe z angielska nazwa i od razu enumeruje, wiec
-      wywolanie get_course("Artificial Intelligence") jest dozwolone, ale nie
-      wymagane. Naprawa po stronie danych (trzymac angielska nazwe i dopuscic
-      ja w get_major/get_course) usunelaby to zgadywanie. Mapowania nazw
-      celowo NIE ma w SYSTEM_PROMPT — prompt z odpowiedzia uniewaznia pomiar.
+      Mierzy strone danych, nie wnioskowanie modelu: od 2026-10-30 angielska
+      nazwa jest w majors.english_name i get_major/get_admission_threshold/
+      get_course ja przyjmuja. Wczesniej jedynym mostem byla lista z get_major()
+      plus zgadywanie modelu. Wywolanie get_course z polska nazwa zwraca te same
+      wiersze, wiec tez przechodzi got_right_data; dodatkowe get_major liczy sie
+      tylko jako extra_calls. Mapowania nazw celowo NIE ma w SYSTEM_PROMPT —
+      prompt z odpowiedzia uniewaznia pomiar.
     expected_calls:
-      - tool: get_major
-        args: {}
       - tool: get_course
-        args: {major_name: "Sztuczna inteligencja", semester: 1}
+        args: {major_name: "Artificial Intelligence", semester: 1}
 
   - id: en-poza-zakresem-erasmus
     question: "I am an Erasmus student — how do I register for the semester and get my learning agreement signed?"

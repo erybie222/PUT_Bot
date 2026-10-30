@@ -442,6 +442,17 @@ Treat these as IDENTICAL and never label them "contradicted" or "unsupported":
 This tolerance covers FORM only. A different room, a different hour or a
 different person is still "contradicted".
 
+# What some fields mean
+
+A few facts are encoded in the data rather than spelled out, and the bot is
+told how to read them. A claim read this way is "supported":
+
+- a major's teaching language: a major (or a threshold row's major) with a
+  non-null `english_name` / `major_english_name` is taught in English; a null
+  one means it is taught in Polish. In a fictional example, "Fotonika stosowana
+  jest prowadzona po angielsku" is supported by `"english_name": "Applied
+  Photonics"` on that major's row.
+
 Write the `text` of each claim in Polish, quoting the answer, so the report can
 be cited directly.
 

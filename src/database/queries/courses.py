@@ -93,7 +93,8 @@ def get_course(
 
     Args:
         cursor: Database cursor to run the SQL on.
-        major_name: Major name; letter case and Polish diacritics are ignored.
+        major_name: Polish name, or the English name of an English-taught
+            major; letter case and Polish diacritics are ignored.
         course_name: Only courses whose name contains this text (case is
             ignored); None for all.
         semester: Only this semester; None for all.
@@ -128,14 +129,15 @@ def get_course(
                c.assessment_type, c.source_url, c.last_updated
         FROM courses c
         JOIN majors m ON m.id = c.major_id
-        WHERE LOWER(unaccent(m.name)) = LOWER(unaccent(%s::text))
+        WHERE (LOWER(unaccent(m.polish_name)) = LOWER(unaccent(%s::text))
+               OR LOWER(unaccent(m.english_name)) = LOWER(unaccent(%s::text)))
           AND (%s::text IS NULL OR unaccent(c.name) ILIKE unaccent(%s::text))
           AND (%s::int IS NULL OR c.semester = %s::int)
           AND (%s::boolean IS NULL OR c.is_obligatory = %s::boolean)
           AND (%s::boolean IS NULL OR c.is_english = %s::boolean)
         ORDER BY c.semester, c.name;
     """, (
-        major_name,
+        major_name, major_name,
         course_pattern, course_pattern,
         semester, semester,
         is_obligatory, is_obligatory,

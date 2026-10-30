@@ -9,13 +9,20 @@ CREATE TABLE IF NOT EXISTS faculties (
 
 CREATE TABLE IF NOT EXISTS majors (
     id SERIAL CONSTRAINT pk_majors PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
+    polish_name VARCHAR(100) NOT NULL,
     degree VARCHAR(50) NOT NULL CHECK (degree IN ('bachelor-of-engineering', 'masters')),
     study_mode VARCHAR(50) NOT NULL CHECK (study_mode IN ('full-time', 'part-time')),
     profile VARCHAR(50) NOT NULL DEFAULT 'general-academic' CHECK (profile IN ('general-academic', 'practical')),
     faculty VARCHAR(10) CONSTRAINT fk_major_faculty REFERENCES faculties(symbol),
-    is_english BOOLEAN NOT NULL DEFAULT FALSE,
-    CONSTRAINT uk_major UNIQUE (name, degree, study_mode)
+    -- Official English name of an English-taught major; NULL for a Polish-taught
+    -- one, so a non-NULL value is what marks a major as taught in English.
+    english_name VARCHAR(100),
+    -- The university runs some majors in both languages under the same Polish
+    -- name ("architektura" and "architektura/Architecture"), so the English
+    -- name is part of a major's identity. NULLS NOT DISTINCT: without it two
+    -- Polish-taught rows (english_name NULL) would never conflict, and every
+    -- re-ingestion would insert a duplicate instead of updating.
+    CONSTRAINT uk_major UNIQUE NULLS NOT DISTINCT (polish_name, degree, study_mode, english_name)
 );
 
 CREATE TABLE IF NOT EXISTS admission_thresholds (

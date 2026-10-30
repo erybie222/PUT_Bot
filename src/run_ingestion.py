@@ -59,8 +59,9 @@ WIIT_MAJORS_PL_FIRST_CYCLE = [
     'Informatyka', 'Bioinformatyka', 'Teleinformatyka', 'Cyberbezpieczeństwo', 'Mikroelektronika i komunikacja cyfrowa'
 ]
 
-# English-taught first-cycle majors as (Polish name, English name). Only the
-# Polish name is stored in the database; both are needed to build the catalog URL.
+# English-taught first-cycle majors as (Polish name, English name). Both are
+# stored, so a question may name the major either way, and both build the
+# catalog URL.
 WIIT_MAJORS_EN_FIRST_CYCLE = [
     ('Sztuczna inteligencja', 'Artificial Intelligence'),
 ]
@@ -95,7 +96,6 @@ def main() -> None:
                     study_mode="full-time",
                     profile="general-academic",
                     faculty="WIiT",
-                    is_english=False,
                 )
                 # The major name is a URL path segment, so spaces become %20.
                 normalized_major_name = major.replace(" ", "%20")
@@ -111,7 +111,7 @@ def main() -> None:
                     study_mode="full-time",
                     profile="general-academic",
                     faculty="WIiT",
-                    is_english=True,
+                    english_name=major[1],
                 )
                 # English-taught majors' catalog path is "<Polish name>_<English name>".
                 major_name = f"{major[0]}_{major[1]}"
