@@ -83,8 +83,9 @@ uv run src/clean_db.py
 uv run main.py
 ```
 
-Type a question in Polish or English; `exit` or Ctrl+C quits. Each question is answered on its
-own — the bot does not remember earlier questions yet. Before each answer the chat prints which
+Type a question in Polish or English; `exit` or Ctrl+C quits. The bot remembers the conversation
+until you quit, so follow-ups like "a w 2024?" work; restart it for a fresh conversation. Before
+each answer the chat prints which
 database tools the agent called, which helps when an answer looks wrong.
 
 ### Measure answer quality

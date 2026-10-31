@@ -79,7 +79,8 @@ def run(cases: list[dict], use_judge: bool, verbose: bool) -> list[CaseRecord]:
         print(f"[{index}/{len(cases)}] {case['id']} ({kind}) ... ", end="", flush=True)
 
         try:
-            messages = ask(agent, case["question"])
+            # Its own conversation per case, so no case sees another's questions.
+            messages = ask(agent, case["question"], thread_id=case["id"])
             answer = messages[-1].content
             tool_calls = agent_tool_calls(messages)
         except Exception as error:
