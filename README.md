@@ -121,6 +121,14 @@ uv run python -m eval.calibrate_judges --repeat 3   # judges are not determinist
 punished. The command reports how many broken answers the judges caught and whether any correct
 answer was scored 0. No database is needed.
 
+```bash
+uv run python -m eval.check_leakage   # after editing a prompt or a tool docstring
+```
+
+This checks that no prompt, tool description or judge schema contains a value or question from
+the benchmark or the calibration set — a prompt holding the answers would turn the evaluation
+into a memory test. It exits with an error and lists every match.
+
 ## Managing the database
 
 **pgAdmin** (a web interface for browsing the database) runs at `http://localhost:5050`. Log in
