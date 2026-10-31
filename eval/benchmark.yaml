@@ -9,7 +9,10 @@
 # Each top-level list is a category; each item in it is one case:
 #
 #   id                 unique name, e.g. for `--only <id>`
-#   question           what the agent is asked
+#   earlier_questions  optional: questions asked first, in the same
+#                      conversation, so `question` can be a follow-up ("a w
+#                      2024?"); see below
+#   question           what the agent is asked (asked last; the scored one)
 #   expected_answer    the correct answer in words; the correctness judge
 #                      compares the agent's answer with it. Only what the
 #                      question asks, plus the fields SYSTEM_PROMPT says
@@ -50,6 +53,16 @@
 #   - Alternatives are scored only when the agent did not follow
 #     expected_calls; a case that follows none is scored against
 #     expected_calls. The report says which route a case passed by.
+#
+# Rules for earlier_questions (multi-turn cases):
+#   - Only the answer to `question` is scored; the earlier answers are not.
+#     expected_answer, expected_data and expected_behavior describe that last
+#     answer only.
+#   - expected_calls covers the calls of the WHOLE conversation: a follow-up
+#     may rightly reuse what an earlier turn fetched (e.g. get_staff in turn 1,
+#     only get_office_hour in turn 2), so list both.
+#   - The judges see the earlier turns to read the follow-up, but only tool
+#     results count as evidence, never the bot's earlier answers.
 #
 # Edit this file by hand only: loading and re-saving it with a YAML library
 # would delete every comment and the &anchors / *references below.

@@ -4,7 +4,7 @@ Two groups:
 
 - **Judge answers** (``Claim``, ``Faithfulness``, ``FactCheck``,
   ``Correctness``): the format each LLM judge must reply in.
-- **Report records** (``ToolCall``, ``ToolScores``, ``CaseRecord``): what is
+- **Report records** (``ToolCall``, ``ToolScores``, ``EarlierTurn``, ``CaseRecord``): what is
   saved for every benchmark case in the JSON report.
 """
 
@@ -131,6 +131,13 @@ class ToolScores(BaseModel):
     )
 
 
+class EarlierTurn(BaseModel):
+    """One turn before the scored question in a multi-turn case — context, not scored itself."""
+
+    question: str = Field(description="The question asked in this turn, from earlier_questions.")
+    answer: str = Field(description="The agent's answer in this turn.")
+
+
 class CaseRecord(BaseModel):
     """Everything about one case: the question, what the agent did, and both layers' scores."""
 
@@ -139,7 +146,14 @@ class CaseRecord(BaseModel):
     kind: Literal["lookup", "clarify", "refusal"] = Field(
         description="What the agent is expected to do; see case_kind."
     )
-    question: str = Field(description="The question put to the agent.")
+    earlier_turns: list[EarlierTurn] = Field(
+        default_factory=list,
+        description=(
+            "Turns asked before the scored question in the same conversation, in order; "
+            "empty for a single-question case."
+        ),
+    )
+    question: str = Field(description="The question put to the agent — the scored one, asked last.")
     reference: str | None = Field(
         default=None,
         description="What the correctness judge compared the answer with; see reference_text.",
@@ -147,7 +161,11 @@ class CaseRecord(BaseModel):
     expected_data: Any = Field(default=None, description="The case's key facts, as in the benchmark.")
     answer: str | None = Field(default=None, description="The agent's final answer.")
     tool_calls: list[ToolCall] = Field(
-        default_factory=list, description="The agent's tool calls with results, in call order."
+        default_factory=list,
+        description=(
+            "The agent's tool calls with results, in call order — from the whole "
+            "conversation, earlier turns included, since that is what is scored."
+        ),
     )
     tool_scores: ToolScores | None = Field(
         default=None, description="Layer 1. None only when asking the agent failed (see error)."

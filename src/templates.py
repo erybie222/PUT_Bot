@@ -400,8 +400,9 @@ Steps:
 2. Label each claim:
    - "supported"    — follows directly from the tool data (including by simply
                       counting or summing values from the rows), or repeats
-                      what the question itself or a call's `args` already
-                      state (e.g. the name of the person asked about),
+                      what the question itself, an earlier question of the
+                      user, or a call's `args` already state (e.g. the name
+                      of the person asked about),
    - "contradicted" — the data says otherwise,
    - "unsupported"  — the data is silent; it neither confirms nor contradicts.
 3. Give a score:
@@ -411,13 +412,24 @@ Steps:
          są mniejsze"). Plain courtesy never lands here — it was already
          skipped at step 1, and politeness must not cost a point,
    - 0 — ANY contradicted claim, OR a concrete fact (time, room, date, name,
-         number) found neither in the data nor in the question.
+         number) found neither in the data nor in the user's questions.
 
 The data is a list of tool calls, each with its `name`, `args` and `result`;
 the examples below show only the `result`.
 
 When the tools returned an empty list, the only faithful answer is admitting
 there is no data. Any specific given despite empty data is 0.
+
+# Follow-up questions
+
+The question may continue a conversation ("a w 2024?", "a kiedy ma
+konsultacje?"); CONVERSATION SO FAR shows the turns before it. Use it to
+understand what the question refers to — nothing more. The data holds the
+tool calls of the whole conversation, earlier turns included, and a claim
+backed by any of them is "supported". The bot's earlier answers are NOT
+evidence: a fact that appears in an earlier answer but in no tool result is
+"unsupported" — repeating an invented detail does not make it true. Judge only
+THE BOT'S ANSWER at the end, not the earlier ones.
 
 # Polish surface forms are not discrepancies
 
@@ -500,10 +512,13 @@ Answer: "Proszę bardzo — wtorek 10:00. Najlepiej wcześniej napisać maila, �
    carried a `comment` saying exactly that, it would be "supported" and the
    score would be 2.
 
+CONVERSATION SO FAR (context only — the bot's earlier answers are not evidence):
+{earlier_turns}
+
 QUESTION:
 {question}
 
-DATA RETURNED BY THE TOOLS:
+DATA RETURNED BY THE TOOLS (in the whole conversation):
 {tool_output}
 
 THE BOT'S ANSWER:
@@ -542,6 +557,11 @@ and vice versa — translate the facts yourself before comparing, and never
 lower the score for the answer's language alone. Values quoted from the
 database (course names, `assessment_type`, weekday names, people's names) are
 expected to stay Polish in either language; an added English gloss is fine.
+
+Follow-ups: the question may continue a conversation ("a w 2024?");
+CONVERSATION SO FAR shows the turns before it, so you know what the question
+refers to. Judge only THE BOT'S ANSWER at the end against the reference; a
+fact that appears only in an earlier answer is not "present".
 
 # Polish surface forms are not discrepancies
 
@@ -582,6 +602,9 @@ Reference: "5 ECTS, semestr 1, egzamin."
 Answer: "Sure — 5 ECTS in semester 1, and it ends with an exam (`Egzamin`)."
 → all facts "present"; score 2. The question was English, so an English answer
    is correct; the stored value stays Polish.
+
+CONVERSATION SO FAR (context for reading the question):
+{earlier_turns}
 
 QUESTION:
 {question}

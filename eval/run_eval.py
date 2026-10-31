@@ -13,6 +13,11 @@ A case may list ``alternative_routes``; they are scored only when the agent
 did not follow ``expected_calls``, and the console marks a pass through one
 with ``via alternative_routes[N]``.
 
+A case may also have ``earlier_questions``: they are asked first in the same
+conversation, so the scored ``question`` can be a follow-up. Both layers
+score only the last answer, but against the tool calls of the whole
+conversation, and the judges see the earlier turns as context.
+
 **Layer 2 — the answer, checked by LLM judges** (``answer_judges.py``):
 ``faithfulness`` — every claim is backed by the data the tools returned (the
 share of 0 scores is the hallucination rate); ``correctness`` — the answer
@@ -45,7 +50,7 @@ from database.connection import close_pool
 from .answer_judges import judge_correctness, judge_faithfulness
 from .benchmark_loader import case_kind, load_cases, reference_text
 from .report import aggregate, summarize, write_report
-from .schemas import CaseRecord, Correctness, Faithfulness
+from .schemas import CaseRecord, Correctness, EarlierTurn, Faithfulness
 from .tool_call_scoring import agent_tool_calls, score_tool_calls_with_alternatives
 
 BENCHMARK_PATH = ROOT / "eval" / "benchmark.yaml"
@@ -76,13 +81,24 @@ def run(cases: list[dict], use_judge: bool, verbose: bool) -> list[CaseRecord]:
     records = []
     for index, case in enumerate(cases, start=1):
         kind = case_kind(case)
-        print(f"[{index}/{len(cases)}] {case['id']} ({kind}) ... ", end="", flush=True)
+        earlier_questions = case.get("earlier_questions") or []
+        turns_note = f", {len(earlier_questions) + 1} turns" if earlier_questions else ""
+        print(f"[{index}/{len(cases)}] {case['id']} ({kind}{turns_note}) ... ", end="", flush=True)
 
         try:
             # Its own conversation per case, so no case sees another's questions.
+            # Earlier questions go first in the same conversation; only the last
+            # answer is scored, but tool calls count from every turn — a follow-up
+            # may rightly reuse what an earlier turn fetched (e.g. a staff id).
+            earlier_turns = []
+            tool_calls = []
+            for earlier_question in earlier_questions:
+                turn = ask(agent, earlier_question, thread_id=case["id"])
+                earlier_turns.append(EarlierTurn(question=earlier_question, answer=turn[-1].content))
+                tool_calls += agent_tool_calls(turn)
             messages = ask(agent, case["question"], thread_id=case["id"])
             answer = messages[-1].content
-            tool_calls = agent_tool_calls(messages)
+            tool_calls += agent_tool_calls(messages)
         except Exception as error:
             print(f"ERROR: {error}")
             records.append(CaseRecord(
@@ -92,8 +108,10 @@ def run(cases: list[dict], use_judge: bool, verbose: bool) -> list[CaseRecord]:
             continue
 
         tool_scores = score_tool_calls_with_alternatives(case, tool_calls)
-        faithfulness = judge_faithfulness(faith_judge, case, answer, tool_calls) if faith_judge else None
-        correctness = judge_correctness(correct_judge, case, answer) if correct_judge else None
+        faithfulness = (
+            judge_faithfulness(faith_judge, case, answer, tool_calls, earlier_turns) if faith_judge else None
+        )
+        correctness = judge_correctness(correct_judge, case, answer, earlier_turns) if correct_judge else None
 
         marks = ["tools OK" if tool_scores.called_right_tools else "tools FAIL"]
         if tool_scores.scored_against_route != "expected_calls":
@@ -123,6 +141,7 @@ def run(cases: list[dict], use_judge: bool, verbose: bool) -> list[CaseRecord]:
             id=case["id"],
             category=case["category"],
             kind=kind,
+            earlier_turns=earlier_turns,
             question=case["question"],
             reference=reference_text(case),
             expected_data=case.get("expected_data"),

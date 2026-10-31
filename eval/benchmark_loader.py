@@ -23,7 +23,11 @@ def load_cases(path: Path) -> list[dict]:
         plus one added key. The keys the evaluation reads:
             ``id`` (str) — unique case name, used in output and ``--only``.
             ``category`` (str) — added here: the top-level list it came from.
-            ``question`` (str) — what the agent is asked.
+            ``question`` (str) — what the agent is asked; the scored question.
+            ``earlier_questions`` (list[str] | None) — asked first, in the
+                same conversation, so ``question`` can be a follow-up. Their
+                answers are not scored; ``expected_calls`` covers the calls of
+                the whole conversation.
             ``expected_calls`` (list[dict] | None) — ``{"tool", "args"}`` per
                 needed call; empty or missing means no tools are needed.
             ``alternative_routes`` (list[dict] | None) — other valid call
@@ -35,7 +39,8 @@ def load_cases(path: Path) -> list[dict]:
                 instead of answering, e.g. ask back.
 
     Raises:
-        ValueError: An alternative route lacks ``why`` or ``calls``.
+        ValueError: An alternative route lacks ``why`` or ``calls``, or
+            ``earlier_questions`` is not a list of non-empty strings.
     """
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     cases = []
@@ -44,8 +49,28 @@ def load_cases(path: Path) -> list[dict]:
             continue
         for entry in entries:
             check_alternative_routes(entry)
+            check_earlier_questions(entry)
             cases.append({**entry, "category": category})
     return cases
+
+
+def check_earlier_questions(case: dict) -> None:
+    """Make sure a case's ``earlier_questions``, if present, is a list of questions.
+
+    A single string instead of a list would otherwise be asked letter by letter.
+
+    Args:
+        case: One benchmark case as written in the YAML.
+
+    Raises:
+        ValueError: ``earlier_questions`` is not a list, or holds an empty or
+            non-string item.
+    """
+    earlier = case.get("earlier_questions")
+    if earlier is None:
+        return
+    if not isinstance(earlier, list) or not all(isinstance(q, str) and q.strip() for q in earlier):
+        raise ValueError(f"{case.get('id')}: earlier_questions must be a list of non-empty strings")
 
 
 def check_alternative_routes(case: dict) -> None:
