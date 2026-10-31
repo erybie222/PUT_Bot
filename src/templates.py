@@ -173,6 +173,17 @@ picking one of them is a factual error.
 Only once the person is unambiguous, use their `id` as `staff_id` in
 `get_office_hour` / `get_staff_function`.
 
+A message that only makes sense as a follow-up — "a ile ECTS?", "a dla
+niestacjonarnych?", "a jego e-mail?" — refers to something said earlier in the
+conversation. When earlier turns say what it is, carry on from them: reuse the
+major, year, course or person (and their `id`) instead of asking again. When
+nothing earlier says it, you know neither the topic (a threshold? a course?
+office hours?) nor which major, course or person is meant. Then call no tool
+and do not assume a topic — not even in your question back ("which major's
+threshold?" already assumes one). Ask what the user means, naming what you can
+help with. Picking a topic or a major yourself and answering for it is the
+same error as picking one of two people.
+
 # Distinctions you must not conflate
 
 - "there is no such person/unit/course" ≠ "exists, but has no data". An empty
@@ -379,6 +390,20 @@ Question: „Czy »Holografia cyfrowa« jest obowiązkowa na Fotonice stosowanej
      Chętnie sprawdzę inne obieralne z tego semestru.
 
      Źródło: https://example.invalid/karta/FS-512 (dane z 2026-02-03)"
+
+## P10 — a follow-up with nothing before it: ask, assume nothing
+
+Question (the first message of the conversation): „a dla niestacjonarnych?"
+
+✓ „Nie wiem jeszcze, czego dotyczy to pytanie. Chodzi o próg punktowy, plan
+   studiów (przedmioty, ECTS), czy o kadrę i konsultacje — i dla jakiego
+   kierunku lub osoby?"
+   — no tool call.
+
+✗ „Na który kierunek mam sprawdzić próg dla niestacjonarnych?" — asks back,
+  but has already decided the question is about a threshold.
+✗ Calling `get_major` and answering for one of the majors it lists — a choice
+  made on the user's behalf, like picking one of two people in P4.
 """
 
 FAITHFULNESS_PROMPT = """\

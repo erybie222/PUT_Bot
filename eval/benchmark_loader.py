@@ -29,7 +29,9 @@ def load_cases(path: Path) -> list[dict]:
                 answers are not scored; ``expected_calls`` covers the calls of
                 the whole conversation.
             ``expected_calls`` (list[dict] | None) — ``{"tool", "args"}`` per
-                needed call; empty or missing means no tools are needed.
+                needed call; empty or missing means no tools are needed. A
+                call may add ``only_resolves_prev_id: true``: it is run to
+                give the next ``$prev.id`` its row, but not required.
             ``alternative_routes`` (list[dict] | None) — other valid call
                 sequences, each ``{"why", "calls"}``; ``calls`` has the
                 format of ``expected_calls``.

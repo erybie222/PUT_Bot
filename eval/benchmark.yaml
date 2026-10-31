@@ -43,6 +43,10 @@
 #   - "$prev.id" stands for the id returned by the previous listed call (e.g.
 #     get_staff, then get_office_hour for that person). Staff ids change on
 #     every ingestion, so real ids cannot be written here.
+#   - "$prev.id" needs a previous call returning exactly one row. When the
+#     agent rightly does not make such a call (it already has the id from an
+#     earlier turn), add it anyway with `only_resolves_prev_id: true`: it is
+#     run to find the id, but not required from the agent.
 #
 # Rules for alternative_routes:
 #   - Only for a second route that is as honest as expected_calls and leads
@@ -659,3 +663,75 @@ wydzialy:
     expected_calls:
       - tool: get_faculties
         args: {}
+
+# ---------------------------------------------------------------------------
+# Category 10 — dopytania (multi-turn follow-ups)
+#
+# Conversations where the scored question only makes sense with what was said
+# before it ("a w 2024?"). They measure the conversation memory; see "Rules for
+# earlier_questions" at the top. The last case has no earlier turn on purpose:
+# the same kind of follow-up with nothing to follow.
+# ---------------------------------------------------------------------------
+dopytania:
+  - id: dopytanie-prog-inny-rok
+    earlier_questions:
+      - "Jaki był próg na Informatykę w 2025 roku?"
+    question: "a w 2024?"
+    entities: {kierunek: "Informatyka", rok: 2024}
+    expected_data: {min_points: 805.25, capacity: 210}
+    expected_answer: "805,25 pkt, limit przyjęć: 210 miejsc."
+    source: *progi
+    expected_calls:
+      - tool: get_admission_threshold
+        args: {major_name: "Informatyka", year: 2025}
+      - tool: get_admission_threshold
+        args: {major_name: "Informatyka", year: 2024}
+
+  - id: dopytanie-konsultacje-tej-osoby
+    earlier_questions:
+      - "Kim jest dr hab. inż. Marek Wojciechowski?"
+    question: "a kiedy ma konsultacje?"
+    entities: {imie: "Marek", nazwisko: "Wojciechowski"}
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    notes: "Agent może wziąć staff_id z tury 1 albo wyszukać osobę ponownie — oba warianty przechodzą, ponowne get_staff liczy się tylko jako extra_calls."
+    source: *informator
+    expected_calls:
+      - tool: get_staff
+        args: {first_name: "Marek", last_name: "Wojciechowski"}
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
+
+  - id: dopytanie-rozstrzygniecie-niejednoznacznosci
+    earlier_questions:
+      - "Kiedy konsultacje ma dr Paweł Wojciechowski?"
+    question: "Chodzi mi o tego z Zakładu Systemów Informatycznych."
+    entities: {imie: "Paweł", nazwisko: "Wojciechowski", jednostka: "Zakład Systemów Informatycznych"}
+    expected_data: {day_of_week: "środa", start_time: "11:20", end_time: "12:50", location: "A23a 1.6.5"}
+    expected_answer: "Środa 11:20–12:50, sala A23a 1.6.5 (dostępny też w inne dni po wcześniejszym umówieniu się mailowo)."
+    notes: "Tura 1 to konsultacje-edge-niejednoznaczne-imie-i-nazwisko — bot ma dopytać, którą z dwóch osób; tura 2 to rozstrzyga."
+    source: *informator
+    # expected_calls note: In turn 2 the agent rightly takes the id from turn 1's two rows, which
+    #   $prev.id cannot read, so the filtered get_staff is there only to find that id.
+    expected_calls:
+      - tool: get_staff
+        args: {first_name: "Paweł", last_name: "Wojciechowski"}
+      - tool: get_staff
+        args: {first_name: "Paweł", last_name: "Wojciechowski", department: "Zakład Systemów Informatycznych"}
+        only_resolves_prev_id: true
+      - tool: get_office_hour
+        args: {staff_id: "$prev.id"}
+
+  - id: dopytanie-edge-brak-kontekstu
+    question: "a w 2024?"
+    expected_data: null
+    expected_answer: null
+    expected_behavior: >
+      Bot nie podaje żadnych danych i niczego nie zakłada — bez wcześniejszej
+      rozmowy nie wiadomo ani o czym jest pytanie (próg? plan studiów?
+      konsultacje?), ani o jaki kierunek. Musi zapytać, o co chodzi, nie
+      zakładając tematu: „o próg na który kierunek chodzi?” już zakłada temat
+      i jest niepełne. Samodzielny wybór kierunku i podanie jego danych = błąd.
+    edge_case: "dopytanie bez wcześniejszej rozmowy — nie ma skąd wziąć tematu ani kierunku"
+    # expected_calls note: Nothing to look up until the user says what they mean.
+    expected_calls: []

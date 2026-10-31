@@ -138,6 +138,14 @@ def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolS
       nothing as long as the data is the same. Caveat: if the right result is
       empty, a wrong call that also finds nothing passes too.
 
+    An expected call marked ``only_resolves_prev_id: true`` is run but never
+    required from the agent: it exists only so the next call's ``$prev.id``
+    has one row to read. E.g. turn 1 finds two people with one name, turn 2
+    says which one — the agent rightly takes that person's id from the
+    conversation, while the benchmark needs a filtered ``get_staff`` to know
+    the id. Such a call counts in no score; an agent that makes it anyway
+    gets one ``extra_calls``.
+
     Args:
         expected: The route's calls, each ``{"tool", "args"}``; empty means no tools are needed.
         agent_calls: The agent's calls with results, from ``agent_tool_calls``.
@@ -147,7 +155,9 @@ def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolS
         described on the ``ToolScores`` model.
     """
     called_tools = [call.name for call in agent_calls]
-    expected_tools = [call["tool"] for call in expected]
+    # Calls the agent must make; only_resolves_prev_id calls are run below but not required.
+    required = [not call.get("only_resolves_prev_id") for call in expected]
+    expected_tools = [call["tool"] for call, needed in zip(expected, required) if needed]
     extra_calls = max(0, len(called_tools) - len(expected_tools))
 
     # Case needs no tools (out of scope, greeting, ...): the only right move is
@@ -196,7 +206,9 @@ def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolS
     # cover two expected calls.
     wrong_data_tools = []
     unused_agent_calls = list(agent_calls)
-    for correct in correct_results:
+    for correct, needed in zip(correct_results, required):
+        if not needed:
+            continue
         agent_call = next(
             (call for call in unused_agent_calls
              if call.name == correct.name and call.result == correct.result),

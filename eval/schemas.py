@@ -105,7 +105,12 @@ class ToolScores(BaseModel):
     extra_calls: int = Field(
         description="How many more calls the agent made than the case needs; at least 0."
     )
-    expected_tools: list[str] = Field(description="Tools the case needs, from expected_calls.")
+    expected_tools: list[str] = Field(
+        description=(
+            "Tools the case needs, from expected_calls — without the ones marked "
+            "only_resolves_prev_id, which are not required from the agent."
+        )
+    )
     called_tools: list[str] = Field(description="Tools the agent called, in call order.")
     wrong_data_tools: list[str] = Field(
         description=(
