@@ -36,6 +36,22 @@ tool_data:
       result:
         - {major_name: "Informatyka", degree: "bachelor-of-engineering", study_mode: "full-time", major_english_name: null, year: 2025, round: 1, min_points: 759.0, capacity: 210, source_url: "PDF: data/progi punktowe 2025-2021.pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
 
+  thresholds_informatyka_2025_and_2024: &thresholds_informatyka_2025_and_2024
+    - name: get_admission_threshold
+      args: {major_name: "Informatyka", year: 2025}
+      result:
+        - {major_name: "Informatyka", degree: "bachelor-of-engineering", study_mode: "full-time", major_english_name: null, year: 2025, round: 1, min_points: 759.0, capacity: 210, source_url: "PDF: data/progi punktowe 2025-2021.pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+    - name: get_admission_threshold
+      args: {major_name: "Informatyka", year: 2024}
+      result:
+        - {major_name: "Informatyka", degree: "bachelor-of-engineering", study_mode: "full-time", major_english_name: null, year: 2024, round: 1, min_points: 805.25, capacity: 210, source_url: "PDF: data/progi punktowe 2025-2021.pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
+  threshold_bioinformatyka_2021: &threshold_bioinformatyka_2021
+    - name: get_admission_threshold
+      args: {major_name: "Bioinformatyka", year: 2021}
+      result:
+        - {major_name: "Bioinformatyka", degree: "bachelor-of-engineering", study_mode: "full-time", major_english_name: null, year: 2021, round: 1, min_points: 525.5, capacity: 60, source_url: "PDF: data/progi punktowe 2025-2021.pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
   threshold_cyber_2022_empty: &threshold_cyber_2022_empty
     - name: get_admission_threshold
       args: {major_name: "Cyberbezpieczeństwo", year: 2022}
@@ -226,12 +242,11 @@ items:
     expected_correctness: 2
 
   - id: konsultacje-wybor-jednej-z-dwoch-osob
-    what_it_tests: "Dwie osoby o tym samym imieniu i nazwisku, a odpowiedź wybiera jedną. Faktycznie poprawne (2), ale to wybór zamiast dopytania (correctness 0)."
+    what_it_tests: "Dwie osoby o tym samym imieniu i nazwisku, a odpowiedź wybiera jedną — wybór zamiast dopytania (correctness 0). Bez oczekiwanej faithfulness: dane osoby są poprawne, ale „chodzi o tę” to niepoparty wniosek, więc 2 i 0 są oba do obrony (sędzia dawał raz jedno, raz drugie)."
     question: "Kiedy konsultacje ma dr Paweł Wojciechowski?"
     tool_calls: *two_pawel_wojciechowski
     answer: "Chodzi o dr. hab. inż. Pawła Wojciechowskiego z Zakładu Systemów Informatycznych — to profesor uczelni."
     expected_behavior: "Bot NIE wybiera jednej osoby — są dwie o identycznym imieniu i nazwisku (Zakład Systemów Informatycznych oraz Zakład Teorii Algorytmów i Systemów Programowania). Musi dopytać, o którą chodzi."
-    expected_faithfulness: 2
     expected_correctness: 0
 
   - id: konsultacje-dopytanie-przy-dwoch-osobach
@@ -352,3 +367,88 @@ items:
     expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
     expected_faithfulness: 2
     expected_correctness: 2
+
+  # --- subtle slips ---------------------------------------------------------
+  # Errors a reader skims past: the value is almost right, or right but for
+  # the wrong year, day or form of class. Under the zero-invented-numbers rule
+  # each is as wrong as a blatant one.
+  - id: subtelne-prog-ucieta-czesc-dziesietna
+    what_it_tests: "Próg 525,50 podany jako 525 — ucięta część dziesiętna."
+    question: "Jaki był próg na Bioinformatykę w 2021 roku?"
+    tool_calls: *threshold_bioinformatyka_2021
+    answer: "Próg na Bioinformatykę w 2021 roku wyniósł 525 pkt, limit przyjęć: 60 miejsc."
+    expected_answer: "525,50 pkt, limit przyjęć: 60 miejsc."
+    expected_data: {min_points: 525.50, capacity: 60}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: subtelne-prog-zaokraglony
+    what_it_tests: "Próg 759 podany jako „około 760” — zaokrąglenie to inna liczba niż w danych."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Próg na Informatykę w 2025 roku wyniósł około 760 pkt, limit przyjęć: 210 miejsc."
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: subtelne-prog-z-innego-roku
+    what_it_tests: "W danych są dwa lata; pytanie o 2024, a odpowiedź podaje próg z 2025 (759 jest w danych, ale dla innego roku)."
+    question: "Jaki był próg na Informatykę w 2024 roku?"
+    tool_calls: *thresholds_informatyka_2025_and_2024
+    answer: "W 2024 roku próg na Informatykę wyniósł 759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_answer: "805,25 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 805.25, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: subtelne-prog-zmyslona-data-zrodla
+    what_it_tests: "Liczby poprawne, ale data danych przy źródle zmyślona (2025-10-30 zamiast 2026-10-30). Faithfulness 0; correctness nie ocenia pochodzenia, więc 2."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Próg na Informatykę w 2025 roku wyniósł 759,00 pkt, limit przyjęć: 210 miejsc.\n\nŹródło: PDF: data/progi punktowe 2025-2021.pdf (dane z 2025-10-30)"
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 2
+
+  - id: subtelne-konsultacje-zly-dzien
+    what_it_tests: "Godziny i sala poprawne, dzień zamieniony (środa zamiast wtorku)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "W środę 12:30–14:00, sala A1 503; prosi o wcześniejszy kontakt mailowy, możliwe też spotkanie online."
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: subtelne-konsultacje-pominiety-komentarz
+    what_it_tests: "Wszystko prawdziwe, ale bez komentarza z danych. SYSTEM_PROMPT każe go przekazać, a referencja go zawiera — odpowiedź niepełna (correctness 1), nie zmyślona (faithfulness 2)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00, sala A1 503."
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_faithfulness: 2
+    expected_correctness: 1
+
+  - id: subtelne-konsultacje-zmieniony-sens-komentarza
+    what_it_tests: "Komentarz streszczony ze zmianą sensu: „po uzgodnieniu możliwe też online” → „wyłącznie online”."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00, sala A1 503 — konsultacje odbywają się wyłącznie online."
+    expected_faithfulness: 0
+
+  - id: subtelne-przedmiot-zly-semestr
+    what_it_tests: "ECTS i egzamin poprawne, semestr przesunięty o jeden (2 zamiast 1)."
+    question: "Czy Analiza matematyczna na Informatyce kończy się egzaminem i w którym jest semestrze?"
+    tool_calls: *course_anam
+    answer: "Tak, kończy się egzaminem. To przedmiot 2. semestru, 6 ECTS."
+    expected_faithfulness: 0
+
+  - id: subtelne-przedmiot-godziny-z-innej-formy
+    what_it_tests: "30 godzin ćwiczeń podane jako 30 godzin laboratorium (w danych hours_lab = 0)."
+    question: "Ile godzin zajęć ma Analiza matematyczna na Informatyce?"
+    tool_calls: *course_anam
+    answer: "Analiza matematyczna ma 30 godzin wykładu i 30 godzin laboratorium."
+    expected_faithfulness: 0
