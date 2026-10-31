@@ -24,6 +24,10 @@ def aggregate(records: list[CaseRecord]) -> dict:
                 ``got_right_data`` skips cases that need no tools,
                 ``called_no_tools`` counts only those. E.g. 1 of 2
                 no-tool cases passed → ``{"hits": 1, "total": 2, "rate": 0.5}``.
+            ``passed_via_alternative_route`` (int) — cases that did not
+                follow ``expected_calls`` but followed one of their
+                ``alternative_routes``. Many of them suggest the prompt and
+                the expected route disagree.
             ``extra_calls_total`` (int) — extra calls summed over all cases.
             ``extra_calls_cases`` (int) — cases with at least one extra call.
             ``per_tool`` (dict[str, dict]) — tool name → three case counts,
@@ -102,6 +106,9 @@ def aggregate(records: list[CaseRecord]) -> dict:
         "called_right_tools": rate("called_right_tools"),
         "got_right_data": rate("got_right_data"),
         "called_no_tools": rate("called_no_tools"),
+        "passed_via_alternative_route": len(
+            [r for r in scored if r.tool_scores.scored_against_route != "expected_calls"]
+        ),
         "extra_calls_total": sum(r.tool_scores.extra_calls for r in scored),
         "extra_calls_cases": len([r for r in scored if r.tool_scores.extra_calls]),
         "per_tool": per_tool,
@@ -150,6 +157,7 @@ def summarize(records: list[CaseRecord], totals: dict) -> None:
     print(f"called_right_tools: {pct(totals['called_right_tools'])}")
     print(f"got_right_data:     {pct(totals['got_right_data'])}")
     print(f"called_no_tools:    {pct(totals['called_no_tools'])}")
+    print(f"via alternative:    {totals['passed_via_alternative_route']} cases")
     print(f"extra_calls:        {totals['extra_calls_total']} calls"
           f" in {totals['extra_calls_cases']} cases")
     if totals["per_tool"]:

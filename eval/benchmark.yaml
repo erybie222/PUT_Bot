@@ -23,7 +23,9 @@
 #                      ask which of two people is meant
 #   expected_calls     the tool calls a correct answer needs (see below);
 #                      [] means the agent should call no tool at all
-#   source             where the expected values were verified
+#   alternative_routes optional: other call sequences that are equally valid,
+#                      each {why, calls}; see below
+#   source            where the expected values were verified
 #   entities, edge_case, notes
 #                      for people reading this file only — the evaluation
 #                      ignores them
@@ -38,6 +40,16 @@
 #   - "$prev.id" stands for the id returned by the previous listed call (e.g.
 #     get_staff, then get_office_hour for that person). Staff ids change on
 #     every ingestion, so real ids cannot be written here.
+#
+# Rules for alternative_routes:
+#   - Only for a second route that is as honest as expected_calls and leads
+#     to a correct answer — not for "the agent sometimes does this". A route
+#     that only deviates from what SYSTEM_PROMPT prescribes stays a failure.
+#   - `why` (required) says why the route is valid; `calls` has the format
+#     of expected_calls ([] = no tools needed).
+#   - Alternatives are scored only when the agent did not follow
+#     expected_calls; a case that follows none is scored against
+#     expected_calls. The report says which route a case passed by.
 #
 # Edit this file by hand only: loading and re-saving it with a YAML library
 # would delete every comment and the &anchors / *references below.
@@ -140,6 +152,14 @@ progi_punktowe:
     expected_calls:
       - tool: get_admission_threshold
         args: {major_name: "Informatyka", year: 2024, study_mode: "part-time"}
+    alternative_routes:
+      - why: "Wyszukanie bez filtra trybu zwraca wiersz stacjonarny; odpowiedź
+          „w danych jest tylko tryb stacjonarny: 805,25 pkt” jest pełniejsza i
+          oparta na danych. Że agent nie podał tego progu jako niestacjonarnego,
+          sprawdza warstwa 2 (faithfulness), nie ta."
+        calls:
+          - tool: get_admission_threshold
+            args: {major_name: "Informatyka", year: 2024}
 
 # ---------------------------------------------------------------------------
 # Category 2 — plany_studiow (study plans / ECTS courses)

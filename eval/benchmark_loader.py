@@ -26,10 +26,16 @@ def load_cases(path: Path) -> list[dict]:
             ``question`` (str) — what the agent is asked.
             ``expected_calls`` (list[dict] | None) — ``{"tool", "args"}`` per
                 needed call; empty or missing means no tools are needed.
+            ``alternative_routes`` (list[dict] | None) — other valid call
+                sequences, each ``{"why", "calls"}``; ``calls`` has the
+                format of ``expected_calls``.
             ``expected_answer`` (str | None) — reference answer for the judge.
             ``expected_data`` (dict | None) — key facts for the judge.
             ``expected_behavior`` (str | None) — what the agent should do
                 instead of answering, e.g. ask back.
+
+    Raises:
+        ValueError: An alternative route lacks ``why`` or ``calls``.
     """
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     cases = []
@@ -37,8 +43,29 @@ def load_cases(path: Path) -> list[dict]:
         if category == "meta" or not isinstance(entries, list):
             continue
         for entry in entries:
+            check_alternative_routes(entry)
             cases.append({**entry, "category": category})
     return cases
+
+
+def check_alternative_routes(case: dict) -> None:
+    """Make sure every alternative route of a case says why it is valid and what to call.
+
+    ``why`` is required so an alternative cannot be added just to make a
+    failing case pass without someone arguing it is an equally honest route.
+
+    Args:
+        case: One benchmark case as written in the YAML.
+
+    Raises:
+        ValueError: An alternative is not a mapping, has an empty ``why``,
+            or has no ``calls`` key. ``calls: []`` is allowed (no tools needed).
+    """
+    for position, alternative in enumerate(case.get("alternative_routes") or []):
+        if not isinstance(alternative, dict) or not alternative.get("why") or "calls" not in alternative:
+            raise ValueError(
+                f"{case.get('id')}: alternative_routes[{position}] needs a non-empty 'why' and a 'calls' list"
+            )
 
 
 def case_kind(case: dict) -> str:

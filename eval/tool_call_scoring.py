@@ -8,6 +8,10 @@ actually did:
 - did those calls return the right data? (``got_right_data``) — checked by
   running the expected calls on the database and comparing results, so the
   exact wording of the agent's arguments does not matter.
+
+A case may also list ``alternative_routes``: other call sequences that are
+equally valid. ``score_tool_calls_with_alternatives`` scores the agent against
+``expected_calls`` first and tries the alternatives only when that fails.
 """
 
 from . import _src_path  # noqa: F401  (puts src/ on sys.path)
@@ -118,8 +122,10 @@ def agent_tool_calls(messages: list[BaseMessage]) -> list[ToolCall]:
 
 
 def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolScores:
-    """Score the agent's tool calls on one case against its expected calls (no LLM).
+    """Score the agent's tool calls on one case against one route (no LLM).
 
+    A route is ``expected_calls`` or one of the case's ``alternative_routes``;
+    ``score_tool_calls_with_alternatives`` decides which to score against.
     Two questions, answered separately so a failure says which one went wrong:
 
     - ``called_right_tools`` — did the agent call every tool the case needs?
@@ -133,7 +139,7 @@ def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolS
       empty, a wrong call that also finds nothing passes too.
 
     Args:
-        expected: A case's ``expected_calls``; empty means the case needs no tools.
+        expected: The route's calls, each ``{"tool", "args"}``; empty means no tools are needed.
         agent_calls: The agent's calls with results, from ``agent_tool_calls``.
 
     Returns:
@@ -211,3 +217,64 @@ def score_tool_calls(expected: list[dict], agent_calls: list[ToolCall]) -> ToolS
         wrong_data_tools=wrong_data_tools,
         expected_calls_error=None,
     )
+
+
+def agent_followed_route(scores: ToolScores) -> bool:
+    """Say whether the agent's calls pass against one route.
+
+    Args:
+        scores: Result of ``score_tool_calls`` against that route.
+
+    Returns:
+        bool: True when the agent called every tool of the route and got the
+        same data. ``got_right_data`` None counts as a pass only for a route
+        with no calls — never when the route's calls could not be run.
+    """
+    return (
+        scores.called_right_tools
+        and scores.got_right_data is not False
+        and scores.expected_calls_error is None
+    )
+
+
+def score_tool_calls_with_alternatives(case: dict, agent_calls: list[ToolCall]) -> ToolScores:
+    """Score the agent's tool calls on one case, accepting any listed route.
+
+    ``expected_calls`` is scored first. Only when the agent did not follow it
+    are the case's ``alternative_routes`` tried, in order, so their expected
+    calls hit the database only when needed. The first alternative the agent
+    followed is returned. A case that follows no route is scored against
+    ``expected_calls`` — the route the prompt prescribes — so its failure
+    says what was missing from that route.
+
+    When ``expected_calls`` cannot be run, alternatives are not tried: that
+    is a benchmark or database problem, and an alternative passing would
+    hide it.
+
+    Args:
+        case: One benchmark case, with ``expected_calls`` and optionally
+            ``alternative_routes`` (each ``{"why", "calls"}``).
+        agent_calls: The agent's calls with results, from ``agent_tool_calls``.
+
+    Returns:
+        ToolScores: The scores of the route the agent followed, with
+        ``scored_against_route`` saying which one ("expected_calls" or
+        "alternative_routes[N]"); the ``expected_calls`` scores if it
+        followed none. If an alternative's calls could not be run, its
+        error is put in ``expected_calls_error`` of the returned scores.
+    """
+    expected_route_scores = score_tool_calls(case.get("expected_calls") or [], agent_calls)
+    if agent_followed_route(expected_route_scores) or expected_route_scores.expected_calls_error:
+        return expected_route_scores
+
+    for position, alternative in enumerate(case.get("alternative_routes") or []):
+        route_name = f"alternative_routes[{position}]"
+        alternative_scores = score_tool_calls(alternative["calls"] or [], agent_calls)
+        if alternative_scores.expected_calls_error:
+            return expected_route_scores.model_copy(update={
+                "expected_calls_error": f"{route_name}: {alternative_scores.expected_calls_error}",
+            })
+        if agent_followed_route(alternative_scores):
+            return alternative_scores.model_copy(update={"scored_against_route": route_name})
+
+    return expected_route_scores

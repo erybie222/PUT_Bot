@@ -9,6 +9,9 @@ to fix:
 ``got_right_data`` — those calls returned the same data as the correct calls;
 ``called_no_tools`` — on cases that need no tools, the agent called none;
 ``extra_calls`` — how many calls it made beyond what was needed.
+A case may list ``alternative_routes``; they are scored only when the agent
+did not follow ``expected_calls``, and the console marks a pass through one
+with ``via alternative_routes[N]``.
 
 **Layer 2 — the answer, checked by LLM judges** (``answer_judges.py``):
 ``faithfulness`` — every claim is backed by the data the tools returned (the
@@ -43,7 +46,7 @@ from .answer_judges import judge_correctness, judge_faithfulness
 from .benchmark_loader import case_kind, load_cases, reference_text
 from .report import aggregate, summarize, write_report
 from .schemas import CaseRecord, Correctness, Faithfulness
-from .tool_call_scoring import agent_tool_calls, score_tool_calls
+from .tool_call_scoring import agent_tool_calls, score_tool_calls_with_alternatives
 
 BENCHMARK_PATH = ROOT / "eval" / "benchmark.yaml"
 RESULTS_DIR = ROOT / "eval" / "results"
@@ -87,11 +90,13 @@ def run(cases: list[dict], use_judge: bool, verbose: bool) -> list[CaseRecord]:
             ))
             continue
 
-        tool_scores = score_tool_calls(case.get("expected_calls") or [], tool_calls)
+        tool_scores = score_tool_calls_with_alternatives(case, tool_calls)
         faithfulness = judge_faithfulness(faith_judge, case, answer, tool_calls) if faith_judge else None
         correctness = judge_correctness(correct_judge, case, answer) if correct_judge else None
 
         marks = ["tools OK" if tool_scores.called_right_tools else "tools FAIL"]
+        if tool_scores.scored_against_route != "expected_calls":
+            marks.append(f"via {tool_scores.scored_against_route}")
         if tool_scores.got_right_data is False:
             marks.append("data FAIL")
         if tool_scores.extra_calls:
