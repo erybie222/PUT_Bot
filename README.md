@@ -107,7 +107,7 @@ verified answers) and scores each answer in two layers:
    compared to the reference (*correctness*)?
 
 The console shows a summary; the full report, with every answer and tool call, is saved to
-`eval/results/<timestamp>.json`.
+`eval/results/`, named by date and what was run (e.g. `2026-10-31_09-42-00_category-dopytania.json`).
 
 ## Managing the database
 

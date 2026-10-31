@@ -24,7 +24,8 @@ share of 0 scores is the hallucination rate); ``correctness`` — the answer
 matches the verified reference.
 
 The console shows a summary (``report.py``); the full report with every
-answer and tool call is saved to ``eval/results/<timestamp>.json``.
+answer and tool call is saved to ``eval/results/``, e.g.
+``2026-10-31_09-42-00_category-dopytania.json`` (local time, then what was run).
 
 Usage:
     uv run python -m eval.run_eval                  # whole benchmark
@@ -159,7 +160,7 @@ def main() -> None:
     """Run the benchmark from the command line.
 
     Parses the filters, runs the selected cases, prints the summary and
-    writes the full report to ``eval/results/<timestamp>.json``.
+    writes the full report to ``eval/results/`` (named by ``write_report``).
     """
     parser = argparse.ArgumentParser(prog="python -m eval.run_eval", description="Run the WIiTek benchmark.")
     parser.add_argument("--category", help="Run only one benchmark category.")
@@ -198,7 +199,9 @@ def main() -> None:
     totals = aggregate(records)
     summarize(records, totals)
 
-    report_path = write_report(records, totals, RESULTS_DIR)
+    run_options = {"category": args.category, "only": args.only, "limit": args.limit,
+                   "judges": not args.no_judge}
+    report_path = write_report(records, totals, RESULTS_DIR, run_options)
     print(f"\nReport: {report_path.relative_to(ROOT)}")
 
 

@@ -1,7 +1,7 @@
 """Summing up an evaluation run: totals over all cases, the console summary and the JSON report file."""
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 from .schemas import CaseRecord
@@ -201,24 +201,61 @@ def summarize(records: list[CaseRecord], totals: dict) -> None:
             print(f"  - {record.id}: {record.error}")
 
 
-def write_report(records: list[CaseRecord], totals: dict, results_dir: Path) -> Path:
-    """Save the whole run as ``<results_dir>/<UTC timestamp>.json``.
+def describe_run(run_options: dict) -> str:
+    """Say in a few words which cases a run covered, for the report's file name.
+
+    Args:
+        run_options: ``category``, ``only``, ``limit`` (each None when not
+            used) and ``judges`` (bool), as given on the command line.
+
+    Returns:
+        str: E.g. ``"all"``, ``"category-dopytania"``,
+        ``"only-prog-informatyka-2025"`` or ``"all_limit-5_no-judge"``.
+    """
+    parts = []
+    if run_options.get("category"):
+        parts.append(f"category-{run_options['category']}")
+    if run_options.get("only"):
+        parts.append(f"only-{run_options['only']}")
+    if not parts:
+        parts.append("all")
+    if run_options.get("limit") is not None:
+        parts.append(f"limit-{run_options['limit']}")
+    if not run_options.get("judges", True):
+        parts.append("no-judge")
+    return "_".join(parts)
+
+
+def write_report(records: list[CaseRecord], totals: dict, results_dir: Path, run_options: dict) -> Path:
+    """Save the whole run as ``<results_dir>/<local date and time>_<what was run>.json``.
+
+    The name starts with the local time, so files sort by date, and ends with
+    ``describe_run``, e.g. ``2026-10-31_09-42-00_category-dopytania.json``.
+    A second run in the same second gets ``_2`` (``_3``, ...) instead of
+    overwriting the first.
 
     Args:
         records: Per-case records from ``run``.
         totals: Totals from ``aggregate``.
         results_dir: Folder for reports; created if missing.
+        run_options: What the run covered — see ``describe_run``.
 
     Returns:
-        Path: The written file. Its JSON has ``generated_at`` (the timestamp),
+        Path: The written file. Its JSON has ``generated_at`` (local time with
+        its UTC offset, e.g. ``"2026-10-31T09:42:00+01:00"``), ``run_options``,
         ``totals`` (as from ``aggregate``) and ``cases`` (every record).
     """
     results_dir.mkdir(parents=True, exist_ok=True)
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    report_path = results_dir / f"{stamp}.json"
+    now = datetime.now().astimezone()
+    base_name = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}_{describe_run(run_options)}"
+    report_path = results_dir / f"{base_name}.json"
+    copy_number = 2
+    while report_path.exists():
+        report_path = results_dir / f"{base_name}_{copy_number}.json"
+        copy_number += 1
     report_path.write_text(
-        json.dumps({"generated_at": stamp, "totals": totals,
-                    "cases": [record.model_dump(mode="json") for record in records]},
+        json.dumps({"generated_at": now.isoformat(timespec="seconds"), "run_options": run_options,
+                    "totals": totals, "cases": [record.model_dump(mode="json") for record in records]},
                    ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
