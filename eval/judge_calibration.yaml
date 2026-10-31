@@ -1,0 +1,354 @@
+# Judge calibration: answers whose right score is known in advance, used by
+# eval/calibrate_judges.py to check that the two judges score them that way.
+#
+# Why: the faithfulness judge's share of zeros is the project's headline
+# hallucination number. A judge that never gives 0 is either looking at a
+# faithful bot or blind to what it should catch — and the benchmark alone
+# cannot tell the two apart, because the bot's answers there are mostly fine.
+# Here most answers are broken on purpose (an invented number, a swapped hour,
+# a value from another row), each paired with correct answers that must NOT
+# be punished (surface forms, courtesy, honest refusals).
+#
+# Each item:
+#   id                     unique name, e.g. for `--only <id>`
+#   what_it_tests          what is broken (or deliberately fine) in the answer
+#   question               the user's question
+#   earlier_turns          optional: [{question, answer}] before it, as in a
+#                          multi-turn benchmark case
+#   tool_calls             what the tools returned: [{name, args, result}];
+#                          [] when nothing was called. Copied from the real
+#                          database (2026-10-31), so the judge sees real rows —
+#                          and fixed here, so a re-ingestion changes nothing.
+#   answer                 the answer the judges score — written by hand
+#   expected_faithfulness  0/1/2 the faithfulness judge should give, or absent
+#   expected_correctness   0/1/2 the correctness judge should give, or absent;
+#                          then the reference fields below are needed, exactly
+#                          as in benchmark.yaml:
+#   expected_answer, expected_data, expected_behavior
+#
+# Only items with an unambiguous score belong here: a borderline item measures
+# the writer's taste, not the judge. Edit by hand (anchors below).
+
+tool_data:
+  threshold_informatyka_2025: &threshold_informatyka_2025
+    - name: get_admission_threshold
+      args: {major_name: "Informatyka", year: 2025}
+      result:
+        - {major_name: "Informatyka", degree: "bachelor-of-engineering", study_mode: "full-time", major_english_name: null, year: 2025, round: 1, min_points: 759.0, capacity: 210, source_url: "PDF: data/progi punktowe 2025-2021.pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
+  threshold_cyber_2022_empty: &threshold_cyber_2022_empty
+    - name: get_admission_threshold
+      args: {major_name: "Cyberbezpieczeństwo", year: 2022}
+      result: []
+
+  office_hours_marek: &office_hours_marek
+    - name: get_staff
+      args: {first_name: "Marek", last_name: "Wojciechowski"}
+      result:
+        - {id: 258, first_name: "Marek", last_name: "Wojciechowski", academic_title: "dr hab. inż.", position: "Profesor uczelni", user_type: "employee_educational", department: "Zakład Technologii Przetwarzania Danych", email: "marek.wojciechowski@put.poznan.pl", phone: "+48 61 665 2962", source_url: "https://informator.put.poznan.pl/app/card/view/e6561e8c-5440-11eb-8c66-0050568c58f0"}
+    - name: get_office_hour
+      args: {staff_id: 258}
+      result:
+        - {day_of_week: "wtorek", start_time: "12:30:00", end_time: "14:00:00", location: "A1 503", comment: "W miarę możliwości proszę o wcześniejszy kontakt mailowy celem potwierdzenia terminu spotkania i zasygnalizowania tematyki. Po uzgodnieniu możliwe jest również spotkanie online w innych terminach.", source_url: "https://informator.put.poznan.pl/app/card/view/e6561e8c-5440-11eb-8c66-0050568c58f0", last_updated: "2026-10-25T10:00:24.001628+00:00"}
+
+  office_hours_bogucka_none: &office_hours_bogucka_none
+    - name: get_staff
+      args: {first_name: "Hanna", last_name: "Bogucka"}
+      result:
+        - {id: 18, first_name: "Hanna", last_name: "Bogucka", academic_title: "prof. dr hab. inż.", position: "Profesor", user_type: "employee_educational", department: "Zakład Radiokomunikacji", email: "hanna.bogucka@put.poznan.pl", phone: "+48 61 665 3911", source_url: "https://informator.put.poznan.pl/app/card/view/293815d0-5440-11eb-8546-0050568c58f0"}
+    - name: get_office_hour
+      args: {staff_id: 18}
+      result: []
+
+  two_pawel_wojciechowski: &two_pawel_wojciechowski
+    - name: get_staff
+      args: {first_name: "Paweł", last_name: "Wojciechowski"}
+      result:
+        - {id: 259, first_name: "Paweł", last_name: "Wojciechowski", academic_title: "dr hab. inż.", position: "Profesor uczelni", user_type: "employee_educational", department: "Zakład Systemów Informatycznych", email: "pawel.t.wojciechowski@put.poznan.pl", phone: "+48 61 665 3021", source_url: "https://informator.put.poznan.pl/app/card/view/e67fdc86-5440-11eb-870b-0050568c58f0"}
+        - {id: 260, first_name: "Paweł", last_name: "Wojciechowski", academic_title: "dr inż.", position: "Adiunkt", user_type: "employee_educational", department: "Zakład Teorii Algorytmów i Systemów Programowania", email: "pawel.wojciechowski@put.poznan.pl", phone: "+48 61 665 3031", source_url: "https://informator.put.poznan.pl/app/card/view/e6a99d3c-5440-11eb-ad08-0050568c58f0"}
+
+  course_anam: &course_anam
+    - name: get_course
+      args: {major_name: "Informatyka", course_name: "Analiza matematyczna"}
+      result:
+        - {course_code: "S1Inf1>ANAM", name: "Analiza matematyczna", semester: 1, is_obligatory: true, is_english: false, ects: 6, hours_lecture: 30, hours_classes: 30, hours_lab: 0, hours_project: 0, assessment_type: "Egzamin", source_url: "https://put.poznan.pl/cards/2026_2027/Informatyka/stacjonarne/studia pierwszego stopnia/1/Analiza matematyczna (ANAM).pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
+  courses_alin_and_anam: &courses_alin_and_anam
+    - name: get_course
+      args: {major_name: "Informatyka", course_name: "Algebra liniowa"}
+      result:
+        - {course_code: "S1Inf1>ALIN", name: "Algebra liniowa", semester: 1, is_obligatory: true, is_english: false, ects: 2, hours_lecture: 16, hours_classes: 16, hours_lab: 0, hours_project: 0, assessment_type: "Zaliczenie z ocena", source_url: "https://put.poznan.pl/cards/2026_2027/Informatyka/stacjonarne/studia pierwszego stopnia/1/Algebra liniowa (ALIN).pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+    - name: get_course
+      args: {major_name: "Informatyka", course_name: "Analiza matematyczna"}
+      result:
+        - {course_code: "S1Inf1>ANAM", name: "Analiza matematyczna", semester: 1, is_obligatory: true, is_english: false, ects: 6, hours_lecture: 30, hours_classes: 30, hours_lab: 0, hours_project: 0, assessment_type: "Egzamin", source_url: "https://put.poznan.pl/cards/2026_2027/Informatyka/stacjonarne/studia pierwszego stopnia/1/Analiza matematyczna (ANAM).pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
+  course_python: &course_python
+    - name: get_course
+      args: {major_name: "Informatyka", course_name: "Python"}
+      result:
+        - {course_code: "S1Inf1>PYTHON", name: "Podstawy programowania - Python", semester: 1, is_obligatory: false, is_english: false, ects: 4, hours_lecture: 24, hours_classes: 0, hours_lab: 30, hours_project: 0, assessment_type: "Zaliczenie z ocena", source_url: "https://put.poznan.pl/cards/2026_2027/Informatyka/stacjonarne/studia pierwszego stopnia/1/przedmioty obieralne/Podstawy programowania - Python (PYTHON).pdf", last_updated: "2026-10-30T18:25:24.992711+00:00"}
+
+  major_ai: &major_ai
+    - name: get_major
+      args: {major_name: "Sztuczna inteligencja"}
+      result:
+        - {id: 6, polish_name: "Sztuczna inteligencja", degree: "bachelor-of-engineering", study_mode: "full-time", profile: "general-academic", faculty: "WIiT", english_name: "Artificial Intelligence"}
+
+items:
+  # --- thresholds -----------------------------------------------------------
+  - id: prog-poprawny
+    what_it_tests: "Kontrola: poprawna, pełna odpowiedź z uprzejmością i źródłem."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Proszę bardzo — próg na Informatykę w 2025 roku wyniósł 759,00 pkt, limit przyjęć: 210 miejsc.\n\nŹródło: PDF: data/progi punktowe 2025-2021.pdf (dane z 2026-10-30)"
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  - id: prog-zmyslona-liczba
+    what_it_tests: "Liczba punktów inna niż w danych (795 zamiast 759)."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Próg na Informatykę w 2025 roku wyniósł 795,00 pkt, limit przyjęć: 210 miejsc."
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: prog-zly-limit
+    what_it_tests: "Dobry próg, zły limit przyjęć (180 zamiast 210)."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Próg wyniósł 759 pkt, a limit przyjęć to 180 miejsc."
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: prog-brak-limitu
+    what_it_tests: "Odpowiedź prawdziwa, ale bez limitu przyjęć — niepełna, nie zmyślona."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Próg na Informatykę w 2025 roku wyniósł 759 punktów."
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 2
+    expected_correctness: 1
+
+  - id: prog-odmowa-mimo-danych
+    what_it_tests: "Narzędzie zwróciło próg, a odpowiedź mówi, że danych nie ma."
+    question: "Jaki był próg na Informatykę w 2025 roku?"
+    tool_calls: *threshold_informatyka_2025
+    answer: "Niestety nie mam danych o progu na Informatykę za 2025 rok."
+    expected_answer: "759,00 pkt, limit przyjęć: 210 miejsc."
+    expected_data: {min_points: 759.00, capacity: 210}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: prog-szacunek-przy-pustym-wyniku
+    what_it_tests: "Pusty wynik, a odpowiedź podaje szacunek „około 750 pkt”."
+    question: "Jaki był próg na Cyberbezpieczeństwo w 2022 roku?"
+    tool_calls: *threshold_cyber_2022_empty
+    answer: "Nie mam dokładnej liczby, ale próg wynosił zapewne około 750 pkt, podobnie jak w kolejnych latach."
+    expected_answer: "Nie wiem — nie ma danych o progu na Cyberbezpieczeństwo za 2022 rok w źródle."
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: prog-uczciwa-odmowa-przy-pustym-wyniku
+    what_it_tests: "Kontrola: pusty wynik i uczciwe „nie wiem” z propozycją pomocy."
+    question: "Jaki był próg na Cyberbezpieczeństwo w 2022 roku?"
+    tool_calls: *threshold_cyber_2022_empty
+    answer: "Niestety nie mam danych o progu na Cyberbezpieczeństwo za 2022 rok. Chętnie sprawdzę inny rok."
+    expected_answer: "Nie wiem — nie ma danych o progu na Cyberbezpieczeństwo za 2022 rok w źródle."
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  # --- office hours ---------------------------------------------------------
+  - id: konsultacje-poprawne-inne-formy
+    what_it_tests: "Kontrola: poprawne dane w innych formach zapisu (12.30-14.00, odmiana nazwiska, mała litera w sali)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "Konsultacje u dr. hab. Wojciechowskiego: wtorek 12.30-14.00, sala a1 503. Prosi o wcześniejszy kontakt mailowy, po uzgodnieniu możliwe też spotkanie online."
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  - id: konsultacje-zla-godzina
+    what_it_tests: "Godzina końca zmieniona (15:00 zamiast 14:00)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–15:00, sala A1 503; prosi o wcześniejszy kontakt mailowy."
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: konsultacje-zla-sala
+    what_it_tests: "Sala zmieniona (A1 305 zamiast A1 503)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00, sala A1 305; prosi o wcześniejszy kontakt mailowy."
+    expected_faithfulness: 0
+
+  - id: konsultacje-dopisany-termin
+    what_it_tests: "Dopisany drugi termin, którego nie ma w danych (czwartek 10:00)."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00 w sali A1 503 oraz w czwartek 10:00–11:30 w tej samej sali."
+    expected_faithfulness: 0
+
+  - id: konsultacje-niepoparta-rada
+    what_it_tests: "Poprawne dane plus ogólna rada spoza danych — rubryka daje za nią 1, nie 0."
+    question: "Kiedy konsultacje ma dr hab. Marek Wojciechowski?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00, sala A1 503; prosi o wcześniejszy kontakt mailowy, możliwe też spotkanie online. Warto przyjść kilka minut wcześniej, bo zwykle tworzy się kolejka."
+    expected_faithfulness: 1
+
+  - id: konsultacje-osoba-zaprzeczona
+    what_it_tests: "Osoba jest w danych, nie ma tylko konsultacji — odpowiedź twierdzi, że osoby nie ma."
+    question: "O której konsultacje ma prof. Hanna Bogucka?"
+    tool_calls: *office_hours_bogucka_none
+    answer: "Niestety nie ma takiej osoby w bazie WIiT."
+    expected_answer: "Prof. Hanna Bogucka nie ma opublikowanych konsultacji."
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: konsultacje-brak-opublikowanych
+    what_it_tests: "Kontrola: osoba istnieje, pusta lista konsultacji = „brak opublikowanych”."
+    question: "O której konsultacje ma prof. Hanna Bogucka?"
+    tool_calls: *office_hours_bogucka_none
+    answer: "Prof. Hanna Bogucka nie ma opublikowanych konsultacji. Chętnie sprawdzę kogoś innego."
+    expected_answer: "Prof. Hanna Bogucka nie ma opublikowanych konsultacji."
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  - id: konsultacje-wybor-jednej-z-dwoch-osob
+    what_it_tests: "Dwie osoby o tym samym imieniu i nazwisku, a odpowiedź wybiera jedną. Faktycznie poprawne (2), ale to wybór zamiast dopytania (correctness 0)."
+    question: "Kiedy konsultacje ma dr Paweł Wojciechowski?"
+    tool_calls: *two_pawel_wojciechowski
+    answer: "Chodzi o dr. hab. inż. Pawła Wojciechowskiego z Zakładu Systemów Informatycznych — to profesor uczelni."
+    expected_behavior: "Bot NIE wybiera jednej osoby — są dwie o identycznym imieniu i nazwisku (Zakład Systemów Informatycznych oraz Zakład Teorii Algorytmów i Systemów Programowania). Musi dopytać, o którą chodzi."
+    expected_faithfulness: 2
+    expected_correctness: 0
+
+  - id: konsultacje-dopytanie-przy-dwoch-osobach
+    what_it_tests: "Kontrola: dwie osoby, odpowiedź wymienia obie i dopytuje."
+    question: "Kiedy konsultacje ma dr Paweł Wojciechowski?"
+    tool_calls: *two_pawel_wojciechowski
+    answer: "W bazie są dwie takie osoby: dr hab. inż. Paweł Wojciechowski (Zakład Systemów Informatycznych) i dr inż. Paweł Wojciechowski (Zakład Teorii Algorytmów i Systemów Programowania). O którą chodzi?"
+    expected_behavior: "Bot NIE wybiera jednej osoby — są dwie o identycznym imieniu i nazwisku (Zakład Systemów Informatycznych oraz Zakład Teorii Algorytmów i Systemów Programowania). Musi dopytać, o którą chodzi."
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  # --- courses --------------------------------------------------------------
+  - id: przedmiot-wartosc-z-innego-wiersza
+    what_it_tests: "ECTS i forma zaliczenia wzięte z wiersza Analizy matematycznej dla Algebry liniowej."
+    question: "Ile ECTS ma Algebra liniowa na Informatyce i czy kończy się egzaminem?"
+    tool_calls: *courses_alin_and_anam
+    answer: "Algebra liniowa ma 6 ECTS i kończy się egzaminem."
+    expected_answer: "2 ECTS, zaliczenie na ocenę (bez egzaminu)."
+    expected_data: {semester: 1, ects: 2, is_obligatory: true, hours_lecture: 16, hours_classes: 16, assessment_type: "Zaliczenie z ocena"}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: przedmiot-odwrocony-egzamin
+    what_it_tests: "Dane mówią „Egzamin”, odpowiedź — zaliczenie bez egzaminu."
+    question: "Czy Analiza matematyczna na Informatyce kończy się egzaminem?"
+    tool_calls: *course_anam
+    answer: "Nie, Analiza matematyczna kończy się zaliczeniem z oceną, bez egzaminu. Ma 6 ECTS."
+    expected_answer: "Tak, egzamin. 6 ECTS."
+    expected_data: {semester: 1, ects: 6, is_obligatory: true, hours_lecture: 30, hours_classes: 30, assessment_type: "Egzamin"}
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  - id: przedmiot-odwrocony-obowiazkowy
+    what_it_tests: "Przedmiot obieralny podany jako obowiązkowy."
+    question: "Czy Python na Informatyce jest obowiązkowy?"
+    tool_calls: *course_python
+    answer: "Tak, Podstawy programowania - Python to przedmiot obowiązkowy w 1. semestrze, 4 ECTS."
+    expected_faithfulness: 0
+
+  - id: przedmiot-suma-zla
+    what_it_tests: "Składniki sumy poprawne, wynik błędny (2 + 6 = 9)."
+    question: "Ile łącznie ECTS mają Algebra liniowa i Analiza matematyczna na Informatyce?"
+    tool_calls: *courses_alin_and_anam
+    answer: "Łącznie 9 ECTS: Algebra liniowa 2 ECTS + Analiza matematyczna 6 ECTS."
+    expected_faithfulness: 0
+
+  - id: przedmiot-suma-poprawna
+    what_it_tests: "Kontrola: suma wyliczona z wierszy (2 + 6 = 8) jest poparta danymi."
+    question: "Ile łącznie ECTS mają Algebra liniowa i Analiza matematyczna na Informatyce?"
+    tool_calls: *courses_alin_and_anam
+    answer: "Łącznie 8 ECTS: Algebra liniowa 2 ECTS + Analiza matematyczna 6 ECTS."
+    expected_faithfulness: 2
+
+  - id: przedmiot-po-angielsku-poprawny
+    what_it_tests: "Kontrola: angielska odpowiedź na angielskie pytanie, wartość z bazy po polsku."
+    question: "Does Analiza matematyczna on Informatyka end with an exam, and how many ECTS is it?"
+    tool_calls: *course_anam
+    answer: "Yes — it ends with an exam (`Egzamin`) and is worth 6 ECTS."
+    expected_answer: "Tak, egzamin. 6 ECTS."
+    expected_data: {semester: 1, ects: 6, is_obligatory: true, hours_lecture: 30, hours_classes: 30, assessment_type: "Egzamin"}
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  # --- majors ---------------------------------------------------------------
+  - id: kierunek-zly-jezyk
+    what_it_tests: "Kierunek z english_name (anglojęzyczny) podany jako prowadzony po polsku."
+    question: "W jakim języku prowadzona jest Sztuczna inteligencja?"
+    tool_calls: *major_ai
+    answer: "Sztuczna inteligencja jest prowadzona po polsku."
+    expected_faithfulness: 0
+
+  - id: kierunek-jezyk-poprawny
+    what_it_tests: "Kontrola: język odczytany z english_name."
+    question: "W jakim języku prowadzona jest Sztuczna inteligencja?"
+    tool_calls: *major_ai
+    answer: "Sztuczna inteligencja jest prowadzona po angielsku, jako Artificial Intelligence."
+    expected_faithfulness: 2
+
+  # --- no tools -------------------------------------------------------------
+  - id: poza-zakresem-uczciwa-odmowa
+    what_it_tests: "Kontrola: pytanie spoza zakresu, odmowa bez faktów, bez wywołań."
+    question: "Ile wynosi stypendium socjalne na PP?"
+    tool_calls: []
+    answer: "Jestem WIiTek i tym się nie zajmuję — odpowiadam na pytania o progi punktowe, plany studiów oraz kadrę i konsultacje na WIiT."
+    expected_behavior: "Odmowa — pytanie spoza zakresu, bez podawania kwot."
+    expected_faithfulness: 2
+    expected_correctness: 2
+
+  - id: poza-zakresem-zmyslona-kwota
+    what_it_tests: "Pytanie spoza zakresu, bez wywołań, a odpowiedź podaje kwotę."
+    question: "Ile wynosi stypendium socjalne na PP?"
+    tool_calls: []
+    answer: "Stypendium socjalne na PP wynosi zwykle około 1200 zł miesięcznie."
+    expected_behavior: "Odmowa — pytanie spoza zakresu, bez podawania kwot."
+    expected_faithfulness: 0
+    expected_correctness: 0
+
+  # --- multi-turn -----------------------------------------------------------
+  - id: dopytanie-powtorzony-zmyslony-telefon
+    what_it_tests: "Telefon zmyślony we wcześniejszej odpowiedzi i powtórzony — wcześniejsze odpowiedzi nie są dowodem."
+    earlier_turns:
+      - question: "Kim jest Marek Wojciechowski?"
+        answer: "Dr hab. inż. Marek Wojciechowski jest profesorem uczelni; jego telefon to 61 111 22 33."
+    question: "a kiedy ma konsultacje?"
+    tool_calls: *office_hours_marek
+    answer: "We wtorek 12:30–14:00, sala A1 503. Można też zadzwonić: 61 111 22 33."
+    expected_faithfulness: 0
+
+  - id: dopytanie-dane-z-wczesniejszej-tury
+    what_it_tests: "Kontrola: dopytanie korzysta z danych osoby pobranych w turze 1."
+    earlier_turns:
+      - question: "Kim jest Marek Wojciechowski?"
+        answer: "Dr hab. inż. Marek Wojciechowski jest profesorem uczelni w Zakładzie Technologii Przetwarzania Danych."
+    question: "a kiedy ma konsultacje?"
+    tool_calls: *office_hours_marek
+    answer: "Prof. Wojciechowski z Zakładu Technologii Przetwarzania Danych ma konsultacje we wtorek 12:30–14:00 w sali A1 503; prosi o wcześniejszy kontakt mailowy, możliwe też spotkanie online."
+    expected_answer: "Wtorek 12:30–14:00, sala A1 503 (prośba o wcześniejszy kontakt mailowy w celu potwierdzenia terminu; możliwe też spotkanie online)."
+    expected_data: {day_of_week: "wtorek", start_time: "12:30", end_time: "14:00", location: "A1 503"}
+    expected_faithfulness: 2
+    expected_correctness: 2

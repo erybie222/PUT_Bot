@@ -226,13 +226,40 @@ def describe_run(run_options: dict) -> str:
     return "_".join(parts)
 
 
-def write_report(records: list[CaseRecord], totals: dict, results_dir: Path, run_options: dict) -> Path:
-    """Save the whole run as ``<results_dir>/<local date and time>_<what was run>.json``.
+def save_report_json(content: dict, results_dir: Path, label: str) -> Path:
+    """Write a report as ``<results_dir>/<local date and time>_<label>.json``.
 
-    The name starts with the local time, so files sort by date, and ends with
-    ``describe_run``, e.g. ``2026-10-31_09-42-00_category-dopytania.json``.
-    A second run in the same second gets ``_2`` (``_3``, ...) instead of
-    overwriting the first.
+    The name starts with the local time, so files sort by date, e.g.
+    ``2026-10-31_09-42-00_category-dopytania.json``. A second report in the
+    same second gets ``_2`` (``_3``, ...) instead of overwriting the first.
+
+    Args:
+        content: The report; ``generated_at`` (local time with its UTC offset,
+            e.g. ``"2026-10-31T09:42:00+01:00"``) is put in front of it.
+        results_dir: Folder for reports; created if missing.
+        label: What the report is about, e.g. ``describe_run(...)``.
+
+    Returns:
+        Path: The written file.
+    """
+    results_dir.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().astimezone()
+    base_name = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}_{label}"
+    report_path = results_dir / f"{base_name}.json"
+    copy_number = 2
+    while report_path.exists():
+        report_path = results_dir / f"{base_name}_{copy_number}.json"
+        copy_number += 1
+    report_path.write_text(
+        json.dumps({"generated_at": now.isoformat(timespec="seconds"), **content},
+                   ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return report_path
+
+
+def write_report(records: list[CaseRecord], totals: dict, results_dir: Path, run_options: dict) -> Path:
+    """Save a benchmark run, named by local time and ``describe_run``.
 
     Args:
         records: Per-case records from ``run``.
@@ -241,22 +268,13 @@ def write_report(records: list[CaseRecord], totals: dict, results_dir: Path, run
         run_options: What the run covered — see ``describe_run``.
 
     Returns:
-        Path: The written file. Its JSON has ``generated_at`` (local time with
-        its UTC offset, e.g. ``"2026-10-31T09:42:00+01:00"``), ``run_options``,
+        Path: The written file, e.g. ``2026-10-31_09-42-00_category-dopytania.json``.
+        Its JSON has ``generated_at`` (see ``save_report_json``), ``run_options``,
         ``totals`` (as from ``aggregate``) and ``cases`` (every record).
     """
-    results_dir.mkdir(parents=True, exist_ok=True)
-    now = datetime.now().astimezone()
-    base_name = f"{now.strftime('%Y-%m-%d_%H-%M-%S')}_{describe_run(run_options)}"
-    report_path = results_dir / f"{base_name}.json"
-    copy_number = 2
-    while report_path.exists():
-        report_path = results_dir / f"{base_name}_{copy_number}.json"
-        copy_number += 1
-    report_path.write_text(
-        json.dumps({"generated_at": now.isoformat(timespec="seconds"), "run_options": run_options,
-                    "totals": totals, "cases": [record.model_dump(mode="json") for record in records]},
-                   ensure_ascii=False, indent=2),
-        encoding="utf-8",
+    return save_report_json(
+        {"run_options": run_options, "totals": totals,
+         "cases": [record.model_dump(mode="json") for record in records]},
+        results_dir,
+        describe_run(run_options),
     )
-    return report_path

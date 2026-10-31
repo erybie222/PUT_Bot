@@ -109,6 +109,18 @@ verified answers) and scores each answer in two layers:
 The console shows a summary; the full report, with every answer and tool call, is saved to
 `eval/results/`, named by date and what was run (e.g. `2026-10-31_09-42-00_category-dopytania.json`).
 
+The judge is a model too, so it is checked separately:
+
+```bash
+uv run python -m eval.calibrate_judges              # every calibration item once
+uv run python -m eval.calibrate_judges --repeat 3   # judges are not deterministic
+```
+
+`eval/judge_calibration.yaml` holds answers whose right score is known — mostly broken on purpose
+(an invented number, a wrong hour, a value from another row), plus correct ones that must not be
+punished. The command reports how many broken answers the judges caught and whether any correct
+answer was scored 0. No database is needed.
+
 ## Managing the database
 
 **pgAdmin** (a web interface for browsing the database) runs at `http://localhost:5050`. Log in
