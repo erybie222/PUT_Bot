@@ -128,6 +128,13 @@ progi_punktowe:
         args: {major_name: "Automatyka i robotyka", year: 2025}
       - tool: get_major
         args: {}
+    alternative_routes:
+      - why: "Pusta odpowiedź get_major po nazwie też uruchamia regułę z promptu
+          (pobierz listę kierunków); lista pokazuje, że kierunku nie ma w danych,
+          więc nie ma też jego progu — pytanie o próg nic tu nie dodaje."
+        calls:
+          - tool: get_major
+            args: {}
 
   - id: prog-edge-rok-w-przyszlosci
     question: "Jaki będzie próg na Informatykę w 2030 roku?"
